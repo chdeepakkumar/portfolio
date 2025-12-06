@@ -1,0 +1,209 @@
+{
+  "sections": {
+    "hero": {
+      "visible": true,
+      "content": {
+        "greeting": "Hello, I'm",
+        "name": "Deepak Kumar CH",
+        "title": "Software Engineer",
+        "description": "Building scalable solutions with Java, Go, and modern cloud technologies.\nPassionate about creating high-performance software and solving complex problems."
+      }
+    },
+    "about": {
+      "visible": true,
+      "order": 1,
+      "content": {
+        "paragraphs": [
+          "Highly motivated individual with experience in developing and implementing software solutions. Proven expertise in developing, testing and debugging high performing software components with a keen eye for detail.",
+          "Excellent problem-solving and communication skills and demonstrates a passion for learning and implementing new technologies."
+        ],
+        "highlights": [
+          {
+            "icon": "⚡",
+            "text": "Performance Optimization"
+          },
+          {
+            "icon": "🚀",
+            "text": "Scalable Architecture"
+          },
+          {
+            "icon": "🔧",
+            "text": "Problem Solving"
+          }
+        ]
+      }
+    },
+    "skills": {
+      "visible": true,
+      "order": 2,
+      "content": {
+        "categories": {
+          "Programming Languages": [
+            "Java",
+            "Go/Golang",
+            "Python",
+            "TypeScript",
+            "JavaScript",
+            "SQL"
+          ],
+          "Frameworks": [
+            "Spring Boot",
+            "Spring Microservices",
+            "Angular",
+            "Flask",
+            "Gin",
+            "Apache Airflow"
+          ],
+          "Cloud": [
+            "Azure Functions",
+            "Azure Cosmos DB",
+            "Azure Key Vault",
+            "AWS S3",
+            "AWS Private CA"
+          ],
+          "Tools & Others": [
+            "Data Structures",
+            "Algorithms",
+            "Problem Solving",
+            "System Design",
+            "Git",
+            "Docker",
+            "Kubernetes",
+            "TDD"
+          ]
+        }
+      }
+    },
+    "experience": {
+      "visible": true,
+      "order": 3,
+      "content": {
+        "experiences": [
+          {
+            "id": "1",
+            "company": "DigiCert Inc.",
+            "role": "Software Engineer",
+            "location": "Bangalore",
+            "period": "Mar 2023 - Present",
+            "description": "Part of Trust Lifecycle Manager (TLM) team which is one of the modules in DcOne/DigicertOne used for the discovery, management and automation of SSL certificates.",
+            "achievements": [
+              "Engineered plugins to integrate with third-party certificate authorities (CAs) such as AWS Private CA and Azure Key Vault using Java Spring Boot, enabling issuance, discovery and management of certificates within a unified platform.",
+              "Utilized object-oriented design principles and various data structures and algorithms to develop high quality software components. Enhanced performance of AKV plugin to discover and list the certificates by 20% using the concepts of multi-threading.",
+              "Built several features in a scanner application (Agent) using Go to discover open IPs and ports, retrieve installed SSL certificates, and facilitate centralized certificate management.",
+              "Implemented pre/post hook, SNI hook and agent cert delivery features for Agent in Golang on request that attracted and helped onboarding 10+ customers to our product with a client satisfaction rate over 80% increasing the revenue close to $3.5 million."
+            ]
+          },
+          {
+            "id": "2",
+            "company": "Infosys Limited",
+            "role": "Specialist Programmer",
+            "location": "Hyderabad",
+            "period": "June 2022 - Mar 2023",
+            "description": "Contributed to the development and maintenance of the e-Approval service, a critical tool of Apple Inc. for internal approval of expense reports and purchase requests.",
+            "achievements": [
+              "Increased the code coverage of the project from 0% to >85% by writing unit tests using JUnit and Mockito in Java which strengthened the code reliability and quality.",
+              "Fixed several bugs in Spring boot microservices project that unblocked several issues of the users."
+            ]
+          },
+          {
+            "id": "3",
+            "company": "Infosys Limited",
+            "role": "Systems Engineer",
+            "location": "Hyderabad",
+            "period": "Nov 2020 - June 2022",
+            "description": "Worked for the client Uniper Energy to develop a platform known as Future Modelling Platform (FMP) to execute their Dockerized models and workflows on Apache Airflow deployed on an Azure Kubernetes cluster.",
+            "achievements": [
+              "Increased model execution throughput nearly by 75% using xlwings (library in python). Developed 4-5 workflows using Apache airflow to schedule and auto-trigger the models at regular intervals.",
+              "Assisted maintaining the platform with an availability rate over 99.9% using the auto-scaling strategies available in AKS.",
+              "Created several Azure Functions to orchestrate and monitor model execution on the platform. Leveraged Cosmos DB (NoSQL) for efficient storage of platform data. Integrated Azure Functions with an Angular UI to visualize model run statistics through interactive charts using Apex charts package.",
+              "Helped creating CI/CD pipelines using Azure DevOps for streamlined project management."
+            ]
+          }
+        ]
+      }
+    },
+    "education": {
+      "visible": true,
+      "order": 4,
+      "content": {
+        "items": [
+          {
+            "id": "1",
+            "degree": "Bachelors of Technology - Computer Science and Engineering",
+            "institution": "National Institute of Science and Technology",
+            "location": "Berhampur, India",
+            "period": "Aug 2016 - July 2020"
+          }
+        ]
+      }
+    },
+    "achievements": {
+      "visible": true,
+      "order": 5,
+      "content": {
+        "items": [
+          {
+            "id": "1",
+            "icon": "🏆",
+            "title": "Leetcode Ranking",
+            "value": "Peak Global rank 6784",
+            "description": "Competitive programming excellence"
+          },
+          {
+            "id": "2",
+            "icon": "💻",
+            "title": "DSA Problems Solved",
+            "value": "2000+",
+            "description": "Across various online platforms"
+          },
+          {
+            "id": "3",
+            "icon": "⭐",
+            "title": "Infy Insta Award",
+            "value": "Twice",
+            "description": "For hard work and commitment at work"
+          }
+        ]
+      }
+    },
+    "contact": {
+      "visible": true,
+      "order": 6,
+      "content": {
+        "description": "I'm always open to discussing new opportunities, interesting projects, or just having a chat about technology. Feel free to reach out!",
+        "links": [
+          {
+            "id": "1",
+            "name": "GitHub",
+            "url": "https://www.github.com/chdeepakkumar",
+            "icon": "github",
+            "label": "View my code repositories"
+          },
+          {
+            "id": "2",
+            "name": "Leetcode",
+            "url": "https://www.leetcode.com/ChDeepakKumar",
+            "icon": "leetcode",
+            "label": "Check my problem-solving skills"
+          },
+          {
+            "id": "1765029324500",
+            "name": "LinkedIn",
+            "url": "https://www.linkedin.com/in/chdeepakkumar/",
+            "icon": "linkedin",
+            "iconEmoji": "",
+            "label": "Here's my LinkedIn"
+          }
+        ]
+      }
+    }
+  },
+  "sectionOrder": [
+    "about",
+    "skills",
+    "experience",
+    "education",
+    "achievements",
+    "contact"
+  ]
+}
