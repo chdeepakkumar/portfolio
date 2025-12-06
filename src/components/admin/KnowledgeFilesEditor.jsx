@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { portfolioAPI } from '../../utils/auth'
 import './KnowledgeFilesEditor.css'
+import './FileUpload.css'
 
 const KnowledgeFilesEditor = ({ onNotification }) => {
   const [files, setFiles] = useState([])
@@ -133,23 +134,42 @@ const KnowledgeFilesEditor = ({ onNotification }) => {
       <div className="upload-section">
         <h3>Upload New File</h3>
         <div className="upload-controls">
-          <input
-            id="knowledge-file-input"
-            type="file"
-            accept=".json,application/json"
-            onChange={handleFileSelect}
-            className="file-input"
-          />
+          <div className="file-input-wrapper">
+            <input
+              id="knowledge-file-input"
+              type="file"
+              accept=".json,application/json"
+              onChange={handleFileSelect}
+              className="file-input"
+              disabled={uploading}
+            />
+            <label htmlFor="knowledge-file-input" className="file-input-label">
+              {selectedFile ? selectedFile.name : 'Choose JSON file'}
+            </label>
+          </div>
           <button
             onClick={handleUpload}
             disabled={!selectedFile || uploading}
             className="btn-upload"
           >
-            {uploading ? 'Uploading...' : 'Upload File'}
+            {uploading ? (
+              <>
+                <span className="upload-spinner"></span>
+                Uploading...
+              </>
+            ) : (
+              'Upload File'
+            )}
           </button>
         </div>
         {selectedFile && (
-          <p className="selected-file">Selected: {selectedFile.name}</p>
+          <div className="selected-file">
+            <span>Selected:</span>
+            <strong>{selectedFile.name}</strong>
+            <span style={{ marginLeft: 'auto', opacity: 0.7 }}>
+              ({formatFileSize(selectedFile.size)})
+            </span>
+          </div>
         )}
       </div>
 

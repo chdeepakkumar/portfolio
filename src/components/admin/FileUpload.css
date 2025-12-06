@@ -1,0 +1,219 @@
+/* Shared file upload styles for all admin components */
+
+.upload-section {
+  background: var(--bg-tertiary);
+  padding: 2rem;
+  border-radius: 12px;
+  margin-bottom: 30px;
+  border: 1px solid var(--border-color);
+  transition: all 0.3s ease;
+}
+
+.upload-section:hover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 4px 20px rgba(100, 255, 218, 0.1);
+}
+
+.upload-section h3 {
+  margin-bottom: 1.5rem;
+  color: var(--accent-primary);
+  font-family: var(--font-mono);
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.upload-section h3::before {
+  content: '📤';
+  font-size: 1.5rem;
+}
+
+.upload-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+/* Custom file input wrapper */
+.file-input-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 250px;
+}
+
+.file-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.file-input-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  background: var(--bg-secondary);
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  min-height: 56px;
+}
+
+.file-input-label:hover {
+  border-color: var(--accent-primary);
+  background: rgba(100, 255, 218, 0.05);
+  color: var(--accent-primary);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(100, 255, 218, 0.2);
+}
+
+.file-input-label::before {
+  content: '📁';
+  font-size: 1.5rem;
+}
+
+.file-input-label.pdf::before {
+  content: '📄';
+}
+
+.file-input:focus + .file-input-label {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px rgba(100, 255, 218, 0.1);
+}
+
+.file-input:disabled + .file-input-label {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-input-label.has-file {
+  color: var(--accent-primary);
+  border-color: var(--accent-primary);
+  background: rgba(100, 255, 218, 0.05);
+}
+
+.btn-upload {
+  padding: 1rem 2rem;
+  background: transparent;
+  color: var(--accent-primary);
+  border: 1px solid var(--accent-primary);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 500;
+  font-family: var(--font-mono);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-upload::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(100, 255, 218, 0.1), transparent);
+  transition: left 0.5s;
+}
+
+.btn-upload:hover:not(:disabled)::before {
+  left: 100%;
+}
+
+.btn-upload:hover:not(:disabled) {
+  background: rgba(100, 255, 218, 0.1);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(100, 255, 218, 0.3);
+}
+
+.btn-upload:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-upload:disabled {
+  background: transparent;
+  border-color: var(--border-color);
+  color: var(--text-tertiary);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.btn-upload::after {
+  content: '→';
+  font-size: 1.2rem;
+  transition: transform 0.3s ease;
+}
+
+.btn-upload:hover:not(:disabled)::after {
+  transform: translateX(4px);
+}
+
+.upload-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--accent-primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.selected-file {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(100, 255, 218, 0.1);
+  border: 1px solid var(--accent-primary);
+  border-radius: 8px;
+  color: var(--accent-primary);
+  font-size: 0.9rem;
+  font-family: var(--font-mono);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  animation: slideIn 0.3s ease;
+}
+
+.selected-file::before {
+  content: '✓';
+  font-size: 1.2rem;
+  color: var(--accent-primary);
+}
+
+.file-upload-hint {
+  color: var(--text-tertiary);
+  font-size: 0.85rem;
+  display: block;
+  margin-top: 0.75rem;
+  font-family: var(--font-mono);
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+

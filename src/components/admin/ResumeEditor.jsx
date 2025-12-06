@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { portfolioAPI } from '../../utils/auth'
+import './FileUpload.css'
 
 const ResumeEditor = ({ onNotification }) => {
   const [resumes, setResumes] = useState([])
@@ -231,17 +232,13 @@ const ResumeEditor = ({ onNotification }) => {
       </div>
 
       {/* Upload Section */}
-      <div style={{ 
-        padding: '1.5rem', 
-        background: 'var(--bg-tertiary)', 
-        borderRadius: '4px' 
-      }}>
+      <div className="upload-section">
         <h3>Upload New Resume</h3>
         {resumes.length >= maxResumes ? (
           <div style={{
             padding: '1rem',
             background: 'rgba(244, 67, 54, 0.1)',
-            borderRadius: '4px',
+            borderRadius: '8px',
             border: '1px solid rgba(244, 67, 54, 0.3)',
             marginTop: '1rem'
           }}>
@@ -251,49 +248,50 @@ const ResumeEditor = ({ onNotification }) => {
           </div>
         ) : (
           <>
-            <div className="form-group" style={{ marginTop: '1rem' }}>
-              <label htmlFor="resume-file-input">Select PDF File</label>
-              <input
-                id="resume-file-input"
-                type="file"
-                accept=".pdf,application/pdf"
-                onChange={handleFileSelect}
-                disabled={uploading}
-                style={{ 
-                  width: '100%', 
-                  padding: '0.5rem',
-                  marginTop: '0.5rem',
-                  color: '#ffffff',
-                  background: 'var(--bg-secondary)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '4px'
-                }}
-              />
-              <small style={{ color: 'var(--text-tertiary)', fontSize: '0.85rem', display: 'block', marginTop: '0.5rem' }}>
-                Maximum file size: 1MB. Only PDF files are allowed. You can store up to {maxResumes} resumes.
-              </small>
+            <div className="upload-controls">
+              <div className="file-input-wrapper">
+                <input
+                  id="resume-file-input"
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  onChange={handleFileSelect}
+                  disabled={uploading}
+                  className="file-input"
+                />
+                <label
+                  htmlFor="resume-file-input"
+                  className={`file-input-label pdf ${selectedFile ? 'has-file' : ''}`}
+                >
+                  {selectedFile ? selectedFile.name : 'Choose PDF file'}
+                </label>
+              </div>
+              <button
+                onClick={handleUpload}
+                disabled={!selectedFile || uploading || resumes.length >= maxResumes}
+                className="btn-upload"
+              >
+                {uploading ? (
+                  <>
+                    <span className="upload-spinner"></span>
+                    Uploading...
+                  </>
+                ) : (
+                  'Upload Resume'
+                )}
+              </button>
             </div>
-            
+            <small className="file-upload-hint">
+              Maximum file size: 1MB. Only PDF files are allowed. You can store up to {maxResumes} resumes.
+            </small>
             {selectedFile && (
-              <div style={{ 
-                marginTop: '1rem', 
-                padding: '1rem', 
-                background: 'var(--bg-secondary)', 
-                borderRadius: '4px' 
-              }}>
-                <p><strong>Selected File:</strong> {selectedFile.name}</p>
-                <p><strong>Size:</strong> {formatFileSize(selectedFile.size)}</p>
+              <div className="selected-file">
+                <span>Selected:</span>
+                <strong>{selectedFile.name}</strong>
+                <span style={{ marginLeft: 'auto', opacity: 0.7 }}>
+                  ({formatFileSize(selectedFile.size)})
+                </span>
               </div>
             )}
-
-            <button
-              onClick={handleUpload}
-              disabled={!selectedFile || uploading || resumes.length >= maxResumes}
-              className="btn-primary"
-              style={{ marginTop: '1.5rem' }}
-            >
-              {uploading ? 'Uploading...' : 'Upload Resume'}
-            </button>
           </>
         )}
       </div>
