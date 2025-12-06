@@ -19,8 +19,14 @@ if (!existsSync(DATA_DIR)) {
 }
 
 const router = express.Router()
-const KNOWLEDGE_DIR = join(__dirname, '../data/knowledge')
-const RESUME_DIR = join(__dirname, '../data/resume')
+
+// For Vercel serverless, use /tmp for file storage (ephemeral)
+// For local/production, use the data directory
+const isVercel = process.env.VERCEL === '1'
+const DATA_BASE_DIR = isVercel ? '/tmp' : join(__dirname, '../data')
+
+const KNOWLEDGE_DIR = join(DATA_BASE_DIR, 'knowledge')
+const RESUME_DIR = join(DATA_BASE_DIR, 'resume')
 const PORTFOLIO_FILE = join(KNOWLEDGE_DIR, 'portfolio.json')
 const RESUME_METADATA_FILE = join(RESUME_DIR, '.resume-metadata.json')
 const MAX_RESUMES = 10

@@ -10,7 +10,13 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
 const router = express.Router()
-const USERS_FILE = join(__dirname, '../data/users.json')
+
+// For Vercel serverless, use /tmp for file storage (ephemeral)
+// For local/production, use the data directory
+const isVercel = process.env.VERCEL === '1'
+const DATA_BASE_DIR = isVercel ? '/tmp' : join(__dirname, '../data')
+
+const USERS_FILE = join(DATA_BASE_DIR, 'users.json')
 
 // In-memory OTP storage
 // Structure: { otp: string, expiresAt: Date, used: boolean }

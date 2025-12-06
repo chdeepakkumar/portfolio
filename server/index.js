@@ -19,8 +19,13 @@ dotenv.config({ path: join(__dirname, '../.env') })
 const app = express()
 const PORT = process.env.PORT || 3001
 
+// For Vercel serverless, use /tmp for file storage (ephemeral)
+// For local/production, use the data directory
+const isVercel = process.env.VERCEL === '1'
+const DATA_BASE_DIR = isVercel ? '/tmp' : __dirname
+
 // Ensure knowledge directory exists
-const KNOWLEDGE_DIR = join(__dirname, 'data/knowledge')
+const KNOWLEDGE_DIR = join(DATA_BASE_DIR, 'data/knowledge')
 if (!existsSync(KNOWLEDGE_DIR)) {
   mkdirSync(KNOWLEDGE_DIR, { recursive: true })
 }
@@ -172,7 +177,14 @@ app.get('/api/health/admin', authenticateToken, (req, res) => {
   })
 })
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`)
-})
+// Export app for Vercel serverless functions
+// Only start server if not in Vercel environment
+if (process.env.VERCEL !== '1') {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`)
+  })
+}
+
+// Export for Vercel serverless
+export default app
 
