@@ -60,13 +60,24 @@ export class Storage {
         }
         return await response.text()
       } catch (error) {
-        // Handle 404 or not found errors
-        if (error.statusCode === 404 || error.message?.includes('404') || error.message?.includes('not found')) {
+        // Handle 404 or not found errors - these are expected for new files
+        if (error.statusCode === 404 || 
+            error.status === 404 ||
+            error.message?.includes('404') || 
+            error.message?.includes('not found') ||
+            error.message?.includes('Not Found')) {
           throw new Error('ENOENT')
         }
         // Log the actual error for debugging
-        console.error(`❌ Error reading blob ${path}:`, error.message || error)
-        throw error
+        console.error(`❌ Error reading blob ${path}:`, {
+          message: error.message,
+          statusCode: error.statusCode,
+          status: error.status,
+          name: error.name,
+          stack: error.stack
+        })
+        // Wrap in a more descriptive error
+        throw new Error(`Blob storage error: ${error.message || 'Unknown error'}. Path: ${path}`)
       }
     } else {
       // Use file system
@@ -102,8 +113,15 @@ export class Storage {
           addRandomSuffix: false // Keep original filename
         })
       } catch (error) {
-        console.error(`❌ Error writing blob ${path}:`, error.message || error)
-        throw error
+        console.error(`❌ Error writing blob ${path}:`, {
+          message: error.message,
+          statusCode: error.statusCode,
+          status: error.status,
+          name: error.name,
+          stack: error.stack
+        })
+        // Wrap in a more descriptive error
+        throw new Error(`Blob storage write error: ${error.message || 'Unknown error'}. Path: ${path}`)
       }
     } else {
       // Use file system

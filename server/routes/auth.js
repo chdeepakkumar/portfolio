@@ -187,7 +187,17 @@ router.post('/login', async (req, res) => {
     otpStore.set(actualOtpKey, otpData)
 
     // Get admin user
-    const usersData = await readUsers()
+    let usersData
+    try {
+      usersData = await readUsers()
+    } catch (error) {
+      console.error('❌ Error reading users in login:', error)
+      // If it's a storage error, provide more context
+      if (error.message?.includes('BLOB') || error.message?.includes('blob') || error.message?.includes('storage')) {
+        throw new Error(`Storage error: ${error.message}. Please check blob storage configuration in Vercel Dashboard.`)
+      }
+      throw error
+    }
     const user = usersData.users.find(u => u.username === 'admin')
 
     if (!user) {
@@ -209,7 +219,16 @@ router.post('/login', async (req, res) => {
 
     // Save refresh token to user
     user.refreshToken = refreshToken
-    await writeUsers(usersData)
+    try {
+      await writeUsers(usersData)
+    } catch (error) {
+      console.error('❌ Error writing users in login:', error)
+      // If it's a storage error, provide more context
+      if (error.message?.includes('BLOB') || error.message?.includes('blob') || error.message?.includes('storage')) {
+        throw new Error(`Storage error: ${error.message}. Please check blob storage configuration in Vercel Dashboard.`)
+      }
+      throw error
+    }
 
     res.json({
       accessToken,
@@ -232,8 +251,11 @@ router.post('/login', async (req, res) => {
     if (error.message?.includes('ENOENT') || error.message?.includes('not found')) {
       return res.status(500).json({ error: 'User data not found. Please contact administrator.' })
     }
-    if (error.message?.includes('BLOB') || error.message?.includes('blob')) {
-      return res.status(500).json({ error: 'Storage error. Please check blob storage configuration.' })
+    if (error.message?.includes('BLOB') || error.message?.includes('blob') || error.message?.includes('storage')) {
+      const errorMsg = error.message?.includes('BLOB_READ_WRITE_TOKEN') 
+        ? 'Blob storage not configured. Please create a Blob Store in Vercel Dashboard and redeploy.'
+        : `Storage error: ${error.message}. Please check blob storage configuration.`
+      return res.status(500).json({ error: errorMsg })
     }
     
     res.status(500).json({ 

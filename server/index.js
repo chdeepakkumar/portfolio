@@ -165,6 +165,23 @@ app.get('/api/health', (req, res) => {
   })
 })
 
+// Storage diagnostic endpoint (for debugging)
+app.get('/api/health/storage', authenticateToken, (req, res) => {
+  const isVercel = process.env.VERCEL === '1'
+  const hasBlobToken = !!process.env.BLOB_READ_WRITE_TOKEN
+  const storageType = isVercel && hasBlobToken ? 'Vercel Blob' : isVercel ? 'Vercel (no blob token)' : 'File System'
+  
+  res.json({
+    storageType,
+    isVercel,
+    hasBlobToken,
+    blobTokenLength: process.env.BLOB_READ_WRITE_TOKEN?.length || 0,
+    message: isVercel && !hasBlobToken 
+      ? '⚠️ Blob store not configured. Create a Blob Store in Vercel Dashboard.'
+      : '✅ Storage configured correctly'
+  })
+})
+
 // Admin health check (protected - for admin operations)
 app.get('/api/health/admin', authenticateToken, (req, res) => {
   res.json({ 
