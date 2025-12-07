@@ -1,34 +1,19 @@
 import express from 'express'
-import { readFile, writeFile, readdir, unlink, stat } from 'fs/promises'
-import { join, dirname, normalize } from 'path'
-import { fileURLToPath } from 'url'
-import { existsSync, mkdirSync } from 'fs'
+import { normalize } from 'path'
 import multer from 'multer'
 import rateLimit from 'express-rate-limit'
 import { authenticateToken } from '../middleware/auth.js'
 import { validateKnowledgeFileFromBuffer } from '../utils/jsonValidator.js'
 import { generateResumePDF } from '../utils/generateResumePDF.js'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
-
-// Ensure data directory exists on module load
-const DATA_DIR = join(__dirname, '../data')
-if (!existsSync(DATA_DIR)) {
-  mkdirSync(DATA_DIR, { recursive: true })
-}
+import { storage } from '../utils/storage.js'
 
 const router = express.Router()
 
-// For Vercel serverless, use /tmp for file storage (ephemeral)
-// For local/production, use the data directory
-const isVercel = process.env.VERCEL === '1'
-const DATA_BASE_DIR = isVercel ? '/tmp' : join(__dirname, '../data')
-
-const KNOWLEDGE_DIR = join(DATA_BASE_DIR, 'knowledge')
-const RESUME_DIR = join(DATA_BASE_DIR, 'resume')
-const PORTFOLIO_FILE = join(KNOWLEDGE_DIR, 'portfolio.json')
-const RESUME_METADATA_FILE = join(RESUME_DIR, '.resume-metadata.json')
+// File paths (relative to data directory for local, full paths for blob)
+const KNOWLEDGE_DIR = 'knowledge'
+const RESUME_DIR = 'resume'
+const PORTFOLIO_FILE = `${KNOWLEDGE_DIR}/portfolio.json`
+const RESUME_METADATA_FILE = `${RESUME_DIR}/.resume-metadata.json`
 const MAX_RESUMES = 10
 
 // Rate limiters for portfolio routes
@@ -56,23 +41,18 @@ const generateResumeRateLimiter = rateLimit({
   legacyHeaders: false
 })
 
-// Ensure resume directory exists
-const ensureResumeDir = () => {
-  if (!existsSync(RESUME_DIR)) {
-    mkdirSync(RESUME_DIR, { recursive: true })
-  }
-}
-ensureResumeDir()
-
 // Helper to read resume metadata
 const readResumeMetadata = async () => {
   try {
-    if (existsSync(RESUME_METADATA_FILE)) {
-      const data = await readFile(RESUME_METADATA_FILE, 'utf8')
+    const exists = await storage.exists(RESUME_METADATA_FILE)
+    if (exists) {
+      const data = await storage.readFile(RESUME_METADATA_FILE)
       return JSON.parse(data)
     }
   } catch (error) {
-    console.error('Error reading resume metadata:', error)
+    if (error.message !== 'ENOENT') {
+      console.error('Error reading resume metadata:', error)
+    }
   }
   return { activeResume: null, resumes: [] }
 }
@@ -80,9 +60,15 @@ const readResumeMetadata = async () => {
 // Helper to write resume metadata
 const writeResumeMetadata = async (metadata) => {
   try {
-    await writeFile(RESUME_METADATA_FILE, JSON.stringify(metadata, null, 2), 'utf8')
+    await storage.writeFile(RESUME_METADATA_FILE, JSON.stringify(metadata, null, 2))
+    
+    // Verify the write was successful
+    const exists = await storage.exists(RESUME_METADATA_FILE)
+    if (!exists) {
+      throw new Error('Resume metadata file was not created after write operation')
+    }
   } catch (error) {
-    console.error('Error writing resume metadata:', error)
+    console.error('❌ Error writing resume metadata:', error)
     throw error
   }
 }
@@ -91,8 +77,8 @@ const writeResumeMetadata = async (metadata) => {
 const getActiveResumeFile = async () => {
   try {
     const metadata = await readResumeMetadata()
-    const files = await readdir(RESUME_DIR)
-    const pdfFiles = files.filter(f => f.toLowerCase().endsWith('.pdf') && f !== '.resume-metadata.json')
+    const files = await storage.listFiles(RESUME_DIR)
+    const pdfFiles = files.filter(f => f.name.toLowerCase().endsWith('.pdf') && f.name !== '.resume-metadata.json')
     
     if (pdfFiles.length === 0) {
       return null
@@ -100,11 +86,11 @@ const getActiveResumeFile = async () => {
     
     // If active resume is set and exists, return it
     if (metadata.activeResume) {
-      const activeFile = pdfFiles.find(f => f === metadata.activeResume)
+      const activeFile = pdfFiles.find(f => f.name === metadata.activeResume)
       if (activeFile) {
         return {
-          filename: activeFile,
-          path: join(RESUME_DIR, activeFile),
+          filename: activeFile.name,
+          path: `${RESUME_DIR}/${activeFile.name}`,
           isActive: true
         }
       }
@@ -112,9 +98,9 @@ const getActiveResumeFile = async () => {
     
     // Otherwise return the first PDF file found
     return {
-      filename: pdfFiles[0],
-      path: join(RESUME_DIR, pdfFiles[0]),
-      isActive: metadata.activeResume === pdfFiles[0]
+      filename: pdfFiles[0].name,
+      path: `${RESUME_DIR}/${pdfFiles[0].name}`,
+      isActive: metadata.activeResume === pdfFiles[0].name
     }
   } catch (error) {
     console.error('Error getting active resume file:', error)
@@ -126,22 +112,15 @@ const getActiveResumeFile = async () => {
 const getAllResumeFiles = async () => {
   try {
     const metadata = await readResumeMetadata()
-    const files = await readdir(RESUME_DIR)
-    const pdfFiles = files.filter(f => f.toLowerCase().endsWith('.pdf') && f !== '.resume-metadata.json')
+    const files = await storage.listFiles(RESUME_DIR)
+    const pdfFiles = files.filter(f => f.name.toLowerCase().endsWith('.pdf') && f.name !== '.resume-metadata.json')
     
-    const resumes = []
-    for (const filename of pdfFiles) {
-      const filePath = join(RESUME_DIR, filename)
-      if (existsSync(filePath)) {
-        const stats = await stat(filePath)
-        resumes.push({
-          filename,
-          size: stats.size,
-          modified: stats.mtime,
-          isActive: metadata.activeResume === filename
-        })
-      }
-    }
+    const resumes = pdfFiles.map(file => ({
+      filename: file.name,
+      size: file.size,
+      modified: file.modified,
+      isActive: metadata.activeResume === file.name
+    }))
     
     // Sort by modified date (newest first)
     resumes.sort((a, b) => new Date(b.modified) - new Date(a.modified))
@@ -156,7 +135,12 @@ const getAllResumeFiles = async () => {
 // Helper to read portfolio
 const readPortfolio = async () => {
   try {
-    const data = await readFile(PORTFOLIO_FILE, 'utf8')
+    const exists = await storage.exists(PORTFOLIO_FILE)
+    if (!exists) {
+      throw new Error('ENOENT')
+    }
+    
+    const data = await storage.readFile(PORTFOLIO_FILE)
     const portfolio = JSON.parse(data)
     
     // Validate portfolio structure
@@ -164,7 +148,7 @@ const readPortfolio = async () => {
       throw new Error('Invalid portfolio data structure')
     }
     
-    // Ensure required fields exist
+    // Ensure required fields exist (but don't overwrite, just add missing ones)
     if (!portfolio.sections) {
       portfolio.sections = {}
     }
@@ -174,13 +158,30 @@ const readPortfolio = async () => {
     
     return portfolio
   } catch (error) {
-    // If file doesn't exist or is invalid, create default portfolio structure
-    if (error.code === 'ENOENT' || error instanceof SyntaxError) {
+    // Only create default portfolio if file doesn't exist
+    // For other errors (like SyntaxError), log but don't overwrite - return empty structure instead
+    if (error.message === 'ENOENT') {
+      // File doesn't exist - create default portfolio structure
+      console.log('Portfolio file not found, creating default structure')
+    } else if (error instanceof SyntaxError) {
+      // Invalid JSON - don't overwrite, just log and return empty structure
+      console.error('⚠️ Portfolio file contains invalid JSON. Preserving file. Error:', error.message)
+      // Return empty structure instead of overwriting
+      return {
+        sections: {},
+        sectionOrder: []
+      }
     } else {
+      // Other errors - log but don't overwrite
       console.error('Error reading portfolio file:', error)
+      // Return empty structure instead of overwriting
+      return {
+        sections: {},
+        sectionOrder: []
+      }
     }
     
-    // Create default portfolio structure
+    // Create default portfolio structure only if file doesn't exist
     const defaultPortfolio = {
       sections: {
         hero: {
@@ -338,11 +339,11 @@ const readPortfolio = async () => {
       sectionOrder: ['about', 'skills', 'experience', 'education', 'achievements', 'contact']
     }
     try {
-      // Ensure knowledge directory exists
-      if (!existsSync(KNOWLEDGE_DIR)) {
-        mkdirSync(KNOWLEDGE_DIR, { recursive: true })
+      // Only write if file doesn't exist (ENOENT case)
+      if (error.message === 'ENOENT') {
+        await storage.writeFile(PORTFOLIO_FILE, JSON.stringify(defaultPortfolio, null, 2))
+        console.log('✅ Default portfolio file created')
       }
-      await writeFile(PORTFOLIO_FILE, JSON.stringify(defaultPortfolio, null, 2))
     } catch (writeError) {
       console.error('Error creating default portfolio file:', writeError)
       // Return default portfolio even if write fails
@@ -353,7 +354,19 @@ const readPortfolio = async () => {
 
 // Helper to write portfolio
 const writePortfolio = async (portfolio) => {
-  await writeFile(PORTFOLIO_FILE, JSON.stringify(portfolio, null, 2))
+  try {
+    // Write portfolio to file with proper formatting
+    await storage.writeFile(PORTFOLIO_FILE, JSON.stringify(portfolio, null, 2))
+    
+    // Verify the write was successful by checking if file exists
+    const exists = await storage.exists(PORTFOLIO_FILE)
+    if (!exists) {
+      throw new Error('Portfolio file was not created after write operation')
+    }
+  } catch (error) {
+    console.error('❌ Error writing portfolio file:', error)
+    throw error // Re-throw to let caller handle the error
+  }
 }
 
 // Get portfolio (public - returns only visible sections)
@@ -519,12 +532,7 @@ router.put('/sections', authenticateToken, updateRateLimiter, async (req, res) =
   }
 })
 
-// Ensure knowledge directory exists
-const ensureKnowledgeDir = () => {
-  if (!existsSync(KNOWLEDGE_DIR)) {
-    mkdirSync(KNOWLEDGE_DIR, { recursive: true })
-  }
-}
+// Directory functions no longer needed - storage abstraction handles this
 
 // Configure multer for file uploads (memory storage for JSON files)
 const upload = multer({
@@ -541,43 +549,9 @@ const upload = multer({
   }
 })
 
-// Configure multer for PDF resume uploads (disk storage)
+// Configure multer for PDF resume uploads (memory storage - we'll write to blob/file system)
 const resumeUpload = multer({
-  storage: multer.diskStorage({
-    destination: async (req, file, cb) => {
-      ensureResumeDir()
-      
-      // Check if we've reached the maximum number of resumes
-      try {
-        const resumes = await getAllResumeFiles()
-        if (resumes.length >= MAX_RESUMES) {
-          return cb(new Error(`Maximum number of resumes (${MAX_RESUMES}) reached. Please delete a resume before uploading a new one.`))
-        }
-      } catch (error) {
-        // If error reading metadata, continue (might be first upload)
-      }
-      
-      cb(null, RESUME_DIR)
-    },
-    filename: (req, file, cb) => {
-      // Use the original filename, sanitized
-      const originalName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')
-      // Ensure it ends with .pdf
-      let filename = originalName.toLowerCase().endsWith('.pdf') 
-        ? originalName 
-        : `${originalName}.pdf`
-      
-      // If file with same name exists, add timestamp
-      const filePath = join(RESUME_DIR, filename)
-      if (existsSync(filePath)) {
-        const timestamp = Date.now()
-        const nameWithoutExt = filename.replace('.pdf', '')
-        filename = `${nameWithoutExt}_${timestamp}.pdf`
-      }
-      
-      cb(null, filename)
-    }
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 1 * 1024 * 1024 }, // 1MB limit for PDF
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'application/pdf' || file.originalname.endsWith('.pdf')) {
@@ -591,21 +565,14 @@ const resumeUpload = multer({
 // Get all knowledge files (public - for chatbot)
 router.get('/knowledge-files', async (req, res) => {
   try {
-    ensureKnowledgeDir()
-    const files = await readdir(KNOWLEDGE_DIR)
-    const jsonFiles = files.filter(f => f.endsWith('.json'))
+    const files = await storage.listFiles(KNOWLEDGE_DIR)
+    const jsonFiles = files.filter(f => f.name.endsWith('.json'))
     
-    const fileList = await Promise.all(
-      jsonFiles.map(async (filename) => {
-        const filePath = join(KNOWLEDGE_DIR, filename)
-        const stats = await stat(filePath)
-        return {
-          filename,
-          size: stats.size,
-          modified: stats.mtime
-        }
-      })
-    )
+    const fileList = jsonFiles.map(file => ({
+      filename: file.name,
+      size: file.size,
+      modified: file.modified
+    }))
     
     res.json({ files: fileList })
   } catch (error) {
@@ -629,16 +596,11 @@ router.get('/knowledge-files/:filename', async (req, res) => {
       return res.status(400).json({ error: 'Invalid filename format' })
     }
     
-    const filePath = normalize(join(KNOWLEDGE_DIR, filename))
-    
-    // Additional security: ensure resolved path is within KNOWLEDGE_DIR
-    if (!filePath.startsWith(normalize(KNOWLEDGE_DIR))) {
-      return res.status(400).json({ error: 'Invalid file path' })
-    }
+    const filePath = `${KNOWLEDGE_DIR}/${filename}`
     
     // Handle README.md specially
     if (filename === 'README.md') {
-      const content = await readFile(filePath, 'utf8')
+      const content = await storage.readFile(filePath)
       res.setHeader('Content-Type', 'text/markdown')
       return res.send(content)
     }
@@ -648,12 +610,12 @@ router.get('/knowledge-files/:filename', async (req, res) => {
       return res.status(400).json({ error: 'Invalid filename' })
     }
     
-    const content = await readFile(filePath, 'utf8')
+    const content = await storage.readFile(filePath)
     const data = JSON.parse(content)
     
     res.json({ filename, data })
   } catch (error) {
-    if (error.code === 'ENOENT') {
+    if (error.message === 'ENOENT') {
       return res.status(404).json({ error: 'File not found' })
     }
     console.error('Get knowledge file error:', error)
@@ -674,11 +636,9 @@ router.post('/knowledge-files', authenticateToken, uploadRateLimiter, upload.sin
       return res.status(400).json({ error: 'File size exceeds 1MB limit' })
     }
     
-    ensureKnowledgeDir()
-    
     // Check maximum file limit (20 files)
-    const existingFiles = await readdir(KNOWLEDGE_DIR)
-    const jsonFiles = existingFiles.filter(f => f.endsWith('.json'))
+    const existingFiles = await storage.listFiles(KNOWLEDGE_DIR)
+    const jsonFiles = existingFiles.filter(f => f.name.endsWith('.json'))
     const MAX_FILES = 20
     
     if (jsonFiles.length >= MAX_FILES) {
@@ -744,12 +704,23 @@ router.post('/knowledge-files', authenticateToken, uploadRateLimiter, upload.sin
       filename = `${nameWithoutExt}-${timestamp}.json`
     }
     
-    const filePath = join(KNOWLEDGE_DIR, filename)
+    const filePath = `${KNOWLEDGE_DIR}/${filename}`
     
-    // Write file
-    await writeFile(filePath, JSON.stringify(validation.data, null, 2), 'utf8')
+    // Write file with proper error handling
+    try {
+      await storage.writeFile(filePath, JSON.stringify(validation.data, null, 2))
+      
+      // Verify the write was successful
+      const exists = await storage.exists(filePath)
+      if (!exists) {
+        throw new Error('File was not created after write operation')
+      }
+    } catch (writeError) {
+      console.error('❌ Error writing knowledge file:', writeError)
+      throw new Error('Failed to save knowledge file')
+    }
     
-    const stats = await stat(filePath)
+    const stats = await storage.getStats(filePath)
     
     res.json({ 
       message: 'File uploaded successfully',
@@ -779,18 +750,18 @@ router.delete('/knowledge-files/:filename', authenticateToken, updateRateLimiter
       return res.status(400).json({ error: 'Invalid filename' })
     }
     
-    // Prevent deleting resume.json (main resume file)
-    if (filename === 'resume.json') {
-      return res.status(400).json({ error: 'Cannot delete the main resume file' })
+    // Prevent deleting portfolio.json (main portfolio file)
+    if (filename === 'portfolio.json') {
+      return res.status(400).json({ error: 'Cannot delete the main portfolio file' })
     }
     
-    const filePath = join(KNOWLEDGE_DIR, filename)
+    const filePath = `${KNOWLEDGE_DIR}/${filename}`
     
     try {
-      await unlink(filePath)
+      await storage.deleteFile(filePath)
       res.json({ message: 'File deleted successfully', filename })
     } catch (error) {
-      if (error.code === 'ENOENT') {
+      if (error.message === 'ENOENT') {
         return res.status(404).json({ error: 'File not found' })
       }
       throw error
@@ -891,8 +862,9 @@ router.put('/resume/active', authenticateToken, updateRateLimiter, async (req, r
     }
     
     // Verify file exists
-    const filePath = join(RESUME_DIR, filename)
-    if (!existsSync(filePath)) {
+    const filePath = `${RESUME_DIR}/${filename}`
+    const exists = await storage.exists(filePath)
+    if (!exists) {
       return res.status(404).json({ error: 'Resume file not found' })
     }
     
@@ -929,24 +901,58 @@ router.post('/resume', authenticateToken, uploadRateLimiter, resumeUpload.single
       return res.status(400).json({ error: 'Only PDF files are allowed' })
     }
     
+    // Check if we've reached the maximum number of resumes
+    const resumes = await getAllResumeFiles()
+    if (resumes.length >= MAX_RESUMES) {
+      return res.status(400).json({ 
+        error: `Maximum number of resumes (${MAX_RESUMES}) reached. Please delete a resume before uploading a new one.` 
+      })
+    }
+    
+    // Generate filename
+    const originalName = req.file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')
+    let filename = originalName.toLowerCase().endsWith('.pdf') 
+      ? originalName 
+      : `${originalName}.pdf`
+    
+    // Check if file with same name exists, add timestamp
+    const filePath = `${RESUME_DIR}/${filename}`
+    const exists = await storage.exists(filePath)
+    if (exists) {
+      const timestamp = Date.now()
+      const nameWithoutExt = filename.replace('.pdf', '')
+      filename = `${nameWithoutExt}_${timestamp}.pdf`
+    }
+    
+    const finalFilePath = `${RESUME_DIR}/${filename}`
+    
+    // Write file to storage (blob or file system)
+    await storage.writeFileBuffer(finalFilePath, req.file.buffer)
+    
+    // Verify file was written
+    const fileExists = await storage.exists(finalFilePath)
+    if (!fileExists) {
+      console.error('❌ Resume file was not found after upload:', finalFilePath)
+      return res.status(500).json({ error: 'Failed to save resume file' })
+    }
+    
     // Update metadata - set as active if it's the first resume
     const metadata = await readResumeMetadata()
-    const resumes = await getAllResumeFiles()
     
     // If this is the first resume, set it as active
     if (resumes.length === 0 && !metadata.activeResume) {
-      metadata.activeResume = req.file.filename
+      metadata.activeResume = filename
       await writeResumeMetadata(metadata)
     }
     
     res.json({ 
       message: 'Resume uploaded successfully',
-      filename: req.file.filename,
+      filename: filename,
       size: req.file.size,
-      isActive: metadata.activeResume === req.file.filename
+      isActive: metadata.activeResume === filename
     })
   } catch (error) {
-    console.error('Upload resume error:', error)
+    console.error('❌ Upload resume error:', error)
     if (error.message === 'Only PDF files are allowed') {
       return res.status(400).json({ error: error.message })
     }
@@ -975,10 +981,11 @@ router.get('/resume/:filename', async (req, res) => {
       return res.status(400).json({ error: 'Invalid filename' })
     }
     
-    const filePath = join(RESUME_DIR, filename)
+    const filePath = `${RESUME_DIR}/${filename}`
     
     // Verify file exists
-    if (!existsSync(filePath)) {
+    const exists = await storage.exists(filePath)
+    if (!exists) {
       return res.status(404).json({ error: 'Resume file not found' })
     }
     
@@ -986,8 +993,8 @@ router.get('/resume/:filename', async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`)
     
-    // Stream the file
-    const fileBuffer = await readFile(filePath)
+    // Read and send the file
+    const fileBuffer = await storage.readFileBuffer(filePath)
     res.send(fileBuffer)
   } catch (error) {
     console.error('Download resume error:', error)
@@ -1009,19 +1016,19 @@ router.get('/resume.pdf', async (req, res) => {
     }
     
     // Verify file exists
-    if (!existsSync(resumeFile.path)) {
+    const exists = await storage.exists(resumeFile.path)
+    if (!exists) {
       console.error('Resume file path does not exist:', resumeFile.path)
       return res.status(404).json({ error: 'Resume file not found' })
     }
-    
     
     // Set response headers
     res.setHeader('Content-Type', 'application/pdf')
     // Use both quoted and unquoted filename for better browser compatibility
     res.setHeader('Content-Disposition', `attachment; filename="${resumeFile.filename}"; filename*=UTF-8''${encodeURIComponent(resumeFile.filename)}`)
     
-    // Stream the file
-    const fileBuffer = await readFile(resumeFile.path)
+    // Read and send the file
+    const fileBuffer = await storage.readFileBuffer(resumeFile.path)
     res.send(fileBuffer)
   } catch (error) {
     console.error('Download resume error:', error)
@@ -1046,10 +1053,11 @@ router.delete('/resume/:filename', authenticateToken, updateRateLimiter, async (
       return res.status(400).json({ error: 'Cannot delete metadata file' })
     }
     
-    const filePath = join(RESUME_DIR, filename)
+    const filePath = `${RESUME_DIR}/${filename}`
     
     // Verify file exists
-    if (!existsSync(filePath)) {
+    const exists = await storage.exists(filePath)
+    if (!exists) {
       return res.status(404).json({ error: 'Resume file not found' })
     }
     
@@ -1058,7 +1066,7 @@ router.delete('/resume/:filename', authenticateToken, updateRateLimiter, async (
     const isActive = metadata.activeResume === filename
     
     // Delete the file
-    await unlink(filePath)
+    await storage.deleteFile(filePath)
     
     // If it was active, set another resume as active (or clear if none left)
     if (isActive) {

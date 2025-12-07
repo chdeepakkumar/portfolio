@@ -26,7 +26,13 @@ This guide will help you deploy both your frontend and backend to Vercel.
    - **Output Directory:** `dist` (auto-detected)
    - **Install Command:** `npm install` (auto-detected)
 
-5. **Add Environment Variables:**
+5. **Set up Vercel Blob Storage** (Required for data persistence):
+   - Go to **Storage** tab in your project
+   - Create a new **Blob** store
+   - The `BLOB_READ_WRITE_TOKEN` will be automatically added
+   - See `VERCEL_BLOB_SETUP.md` for detailed instructions
+
+6. **Add Environment Variables:**
    Click "Environment Variables" and add:
    ```
    VITE_API_URL=https://your-project.vercel.app/api
@@ -34,14 +40,17 @@ This guide will help you deploy both your frontend and backend to Vercel.
    VITE_GEMINI_API_KEY=your_gemini_key (optional)
    NODE_ENV=production
    JWT_SECRET=your_random_secret_key
-   EMAIL_HOST=smtp.gmail.com
-   EMAIL_PORT=587
-   EMAIL_USER=your_email@gmail.com
-   EMAIL_PASS=your_app_password
+   ADMIN_EMAIL=your_email@example.com
+   OTP_PASSWORD=your_otp_password
+   GMAIL_USER=your_email@gmail.com
+   GMAIL_PASSWORD=your_gmail_app_password
    ALLOWED_ORIGINS=https://your-project.vercel.app
    ```
    
-   **Note:** `VITE_BASE_PATH` defaults to `/` for Vercel. You can leave it unset.
+   **Note:** 
+   - `VITE_BASE_PATH` defaults to `/` for Vercel. You can leave it unset.
+   - `BLOB_READ_WRITE_TOKEN` is automatically added when you create a blob store.
+   - `VERCEL=1` is automatically set by Vercel (don't add manually).
 
 6. **Deploy:**
    - Click "Deploy"
@@ -89,37 +98,50 @@ This guide will help you deploy both your frontend and backend to Vercel.
 
 ## File Storage on Vercel
 
-⚠️ **Important:** Vercel serverless functions use **ephemeral storage** (`/tmp`). Files are lost when the function stops.
+✅ **Vercel Blob Storage is now implemented!** All data persists across deployments.
 
-### Options for Persistent Storage:
+### Current Setup
 
-#### Option 1: Vercel Blob Storage (Recommended)
-1. Install Vercel Blob:
-   ```bash
-   npm install @vercel/blob
-   ```
+The portfolio now uses **Vercel Blob Storage** for persistent file storage:
 
-2. Update your code to use Blob Storage instead of file system
+- ✅ **Portfolio data** (`portfolio.json`) - All section content and settings
+- ✅ **Knowledge files** - Chatbot knowledge base files
+- ✅ **Resume files** - Uploaded PDF resumes
+- ✅ **User data** - Admin user information
 
-#### Option 2: External Storage
-- Use services like:
-  - **Supabase Storage** (free tier)
-  - **Cloudinary** (free tier)
-  - **AWS S3** (pay-as-you-go)
-  - **Google Cloud Storage**
+### Setting Up Vercel Blob Storage
 
-#### Option 3: Database + File References
-- Store file metadata in a database
-- Use external file storage
-- Reference files by ID
+**This is required for data persistence on Vercel!**
 
-### Current Setup (Temporary)
-The current setup uses `/tmp` directory which is **ephemeral**. This means:
-- ✅ Files work during function execution
-- ❌ Files are lost when function stops
-- ⚠️ **Not suitable for production** if you need persistent file storage
+1. **Create a Blob Store:**
+   - Go to Vercel Dashboard → Your Project → **Storage** tab
+   - Click **Create** → Select **Blob**
+   - Name it (e.g., "portfolio-storage")
+   - Click **Create**
 
-**For production**, you should migrate to one of the storage options above.
+2. **Environment Variable:**
+   - Vercel automatically adds `BLOB_READ_WRITE_TOKEN` to your project
+   - For local development, add it to your `.env` file (optional)
+   - Or use `vercel env pull` to pull all environment variables
+
+3. **That's it!** Your data will now persist across all deployments.
+
+See `VERCEL_BLOB_SETUP.md` for detailed setup instructions.
+
+### How It Works
+
+- **Local Development**: Uses file system (`server/data/`) - no blob token needed
+- **Vercel Deployment**: Automatically uses Vercel Blob Storage when:
+  - `VERCEL=1` is set (automatic on Vercel)
+  - `BLOB_READ_WRITE_TOKEN` is available (automatic after creating blob store)
+
+### Free Tier Limits
+
+Vercel Blob free tier includes:
+- ✅ 1 GB storage per month
+- ✅ 10,000 simple operations per month
+- ✅ 10 GB data transfer per month
+- ✅ More than enough for a portfolio site!
 
 ## Environment Variables
 
@@ -135,17 +157,20 @@ VITE_GEMINI_API_KEY=your_gemini_key (optional)
 ```
 NODE_ENV=production
 JWT_SECRET=your_random_secret_key_here
-EMAIL_HOST=smtp.gmail.com
-EMAIL_PORT=587
-EMAIL_USER=your_email@gmail.com
-EMAIL_PASS=your_app_password
+ADMIN_EMAIL=your_email@example.com
+OTP_PASSWORD=your_otp_password
+GMAIL_USER=your_email@gmail.com
+GMAIL_PASSWORD=your_gmail_app_password
 ALLOWED_ORIGINS=https://your-project.vercel.app
 ```
 
-### Vercel-Specific
+### Vercel-Specific (Auto-configured)
 ```
-VERCEL=1
+VERCEL=1                    # Automatically set by Vercel
+BLOB_READ_WRITE_TOKEN=...   # Automatically added when you create a blob store
 ```
+
+**Note:** You don't need to manually set `VERCEL=1` or `BLOB_READ_WRITE_TOKEN` - they're automatically configured by Vercel.
 
 ## Project Structure
 
@@ -198,8 +223,11 @@ Your API will be available at:
 
 ### File Upload Not Working
 
-- Remember: `/tmp` storage is ephemeral
-- Consider migrating to Vercel Blob or external storage
+- ✅ Vercel Blob Storage is now implemented - files persist!
+- If uploads fail, check that:
+  - Blob store is created in Vercel Dashboard
+  - `BLOB_READ_WRITE_TOKEN` is available (automatic after creating blob store)
+  - Check deployment logs for errors
 
 ### Build Failures
 
@@ -236,18 +264,22 @@ Vercel's free tier includes:
 ## Next Steps
 
 1. ✅ Deploy to Vercel (follow steps above)
-2. ⚠️ **Migrate file storage** to persistent solution (Vercel Blob, Supabase, etc.)
+2. ✅ **Set up Vercel Blob Storage** (see `VERCEL_BLOB_SETUP.md`)
 3. ✅ Test all API endpoints
 4. ✅ Test file uploads/downloads
-5. ✅ Configure custom domain (optional)
+5. ✅ Make changes via admin panel - they will persist across deployments!
+6. ✅ Configure custom domain (optional)
 
-## Migration to Persistent Storage
+## Data Persistence
 
-When ready, you'll need to:
-1. Choose a storage solution (Vercel Blob recommended)
-2. Update `server/routes/portfolio.js` to use storage API
-3. Update file upload/download logic
-4. Test thoroughly
+✅ **All data now persists across deployments!**
 
-See `BACKEND_DEPLOYMENT.md` for alternative hosting options if you need traditional file system access.
+- Portfolio content changes made via admin panel
+- Knowledge files uploaded for chatbot
+- Resume files uploaded
+- All settings and configurations
+
+**Important:** Make sure you've created a Blob Store in Vercel (see `VERCEL_BLOB_SETUP.md`). Without it, data will be lost on redeploy.
+
+See `VERCEL_BLOB_SETUP.md` for complete setup instructions.
 

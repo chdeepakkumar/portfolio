@@ -188,8 +188,14 @@ While you can use any section names, here are some common ones:
 ## File Naming
 
 - Files are automatically named with timestamps: `knowledge-{timestamp}.json`
-- The main resume file is: `resume.json` (auto-generated from PDF, cannot be deleted)
+- The main portfolio file is: `portfolio.json` (contains all portfolio sections)
 - You can upload multiple files to add more information
+
+## Storage
+
+- **Local Development**: Files are stored in `server/data/knowledge/`
+- **Vercel Deployment**: Files are stored in Vercel Blob Storage (persists across deployments)
+- All uploaded knowledge files persist across server restarts and deployments
 
 ## Validation
 

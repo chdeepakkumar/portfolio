@@ -156,7 +156,7 @@ const Chatbot = () => {
         <div className="chatbot-container">
           <div className="chatbot-header">
             <div className="chatbot-header-content">
-              <h3>Resume Assistant {geminiAvailable && <span className="ai-badge">AI</span>}</h3>
+              <h3>Deepak's AI Assistant {geminiAvailable && <span className="ai-badge">AI</span>}</h3>
               <p>Ask me anything about Deepak's background</p>
             </div>
             <div className="chatbot-actions">

@@ -60,7 +60,7 @@ A modern, tech-focused portfolio website showcasing my experience, skills, and a
 
      # Gmail Configuration for Password Reset
      GMAIL_USER=your-email@gmail.com
-     GMAIL_APP_PASSWORD=your-gmail-app-password
+     GMAIL_PASSWORD=your-gmail-app-password
 
      # Google Gemini API Key (optional, for chatbot)
      VITE_GEMINI_API_KEY=your_actual_api_key_here
@@ -69,7 +69,7 @@ A modern, tech-focused portfolio website showcasing my experience, skills, and a
      1. Go to your Google Account settings
      2. Enable 2-Step Verification
      3. Go to App Passwords and generate a new app password for "Mail"
-     4. Use the generated 16-character password as `GMAIL_APP_PASSWORD`
+     4. Use the generated 16-character password as `GMAIL_PASSWORD`
    - See `ENV_SETUP.md` for detailed instructions
 
 4. Start the development servers:
@@ -149,14 +149,22 @@ This portfolio is ready to deploy to various platforms:
    npm i -g vercel
    ```
 
-2. Deploy:
+2. **Set up Vercel Blob Storage** (Required for data persistence):
+   - Go to your Vercel Dashboard → Your Project → Storage
+   - Create a new Blob store
+   - The `BLOB_READ_WRITE_TOKEN` will be automatically added
+   - See `VERCEL_BLOB_SETUP.md` for detailed instructions
+
+3. Deploy:
    ```bash
    vercel
    ```
 
    OR
 
-3. Connect your GitHub repository on [Vercel](https://vercel.com/) and it will auto-detect the settings.
+4. Connect your GitHub repository on [Vercel](https://vercel.com/) and it will auto-detect the settings.
+
+**Important:** All admin panel changes now persist across deployments using Vercel Blob Storage. See `VERCEL_DEPLOYMENT.md` and `VERCEL_BLOB_SETUP.md` for complete deployment instructions.
 
 ### Other Static Hosting
 
@@ -190,6 +198,7 @@ The portfolio includes a full admin panel for managing content:
 2. Login with your admin credentials
 3. Navigate to `/admin` to access the full admin panel
 4. All changes are saved automatically to the backend
+5. **Data Persistence**: All changes persist across server restarts and deployments (using Vercel Blob Storage on Vercel, file system locally)
 
 ## 📁 Project Structure
 
@@ -204,8 +213,9 @@ portfolio/
 │   │   └── auth.js  # JWT authentication middleware
 │   ├── utils/       # Utility functions
 │   │   ├── email.js # Email service
+│   │   ├── storage.js  # Storage abstraction (file system / Vercel Blob)
 │   │   └── password.js  # Password hashing
-│   └── data/        # JSON data storage
+│   └── data/        # JSON data storage (local development)
 │       ├── knowledge/  # Knowledge base files
 │       │   └── portfolio.json
 │       └── users.json

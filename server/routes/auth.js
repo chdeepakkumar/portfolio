@@ -1,22 +1,12 @@
 import express from 'express'
 import jwt from 'jsonwebtoken'
-import { readFile, writeFile } from 'fs/promises'
-import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
 import { sendOTPEmail } from '../utils/email.js'
+import { storage } from '../utils/storage.js'
 import crypto from 'crypto'
-
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = dirname(__filename)
 
 const router = express.Router()
 
-// For Vercel serverless, use /tmp for file storage (ephemeral)
-// For local/production, use the data directory
-const isVercel = process.env.VERCEL === '1'
-const DATA_BASE_DIR = isVercel ? '/tmp' : join(__dirname, '../data')
-
-const USERS_FILE = join(DATA_BASE_DIR, 'users.json')
+const USERS_FILE = 'users.json'
 
 // In-memory OTP storage
 // Structure: { otp: string, expiresAt: Date, used: boolean }
@@ -45,32 +35,39 @@ const generateOTP = () => {
 // Helper to read users
 const readUsers = async () => {
   try {
-    const data = await readFile(USERS_FILE, 'utf8')
+    const exists = await storage.exists(USERS_FILE)
+    if (!exists) {
+      throw new Error('ENOENT')
+    }
+    const data = await storage.readFile(USERS_FILE)
     return JSON.parse(data)
   } catch (error) {
     // If file doesn't exist, create default user
-    // Use ADMIN_EMAIL from environment - must be set
-    const adminEmail = process.env.ADMIN_EMAIL
-    if (!adminEmail) {
-      throw new Error('ADMIN_EMAIL environment variable must be set in .env file')
+    if (error.message === 'ENOENT') {
+      // Use ADMIN_EMAIL from environment - must be set
+      const adminEmail = process.env.ADMIN_EMAIL
+      if (!adminEmail) {
+        throw new Error('ADMIN_EMAIL environment variable must be set in .env file')
+      }
+      
+      const defaultUsers = {
+        users: [{
+          id: '1',
+          username: 'admin',
+          email: adminEmail,
+          createdAt: new Date().toISOString()
+        }]
+      }
+      await storage.writeFile(USERS_FILE, JSON.stringify(defaultUsers, null, 2))
+      return defaultUsers
     }
-    
-    const defaultUsers = {
-      users: [{
-        id: '1',
-        username: 'admin',
-        email: adminEmail,
-        createdAt: new Date().toISOString()
-      }]
-    }
-    await writeFile(USERS_FILE, JSON.stringify(defaultUsers, null, 2))
-    return defaultUsers
+    throw error
   }
 }
 
 // Helper to write users
 const writeUsers = async (users) => {
-  await writeFile(USERS_FILE, JSON.stringify(users, null, 2))
+  await storage.writeFile(USERS_FILE, JSON.stringify(users, null, 2))
 }
 
 // Request OTP
