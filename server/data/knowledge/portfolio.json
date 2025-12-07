@@ -10,7 +10,7 @@
       }
     },
     "about": {
-      "visible": true,
+      "visible": false,
       "order": 1,
       "content": {
         "paragraphs": [
@@ -75,7 +75,7 @@
       }
     },
     "experience": {
-      "visible": true,
+      "visible": false,
       "order": 3,
       "content": {
         "experiences": [
@@ -167,7 +167,7 @@
       }
     },
     "contact": {
-      "visible": true,
+      "visible": false,
       "order": 6,
       "content": {
         "description": "I'm always open to discussing new opportunities, interesting projects, or just having a chat about technology. Feel free to reach out!",
