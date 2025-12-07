@@ -111,9 +111,22 @@ export const PortfolioProvider = ({ children }) => {
       const response = await portfolioAPI.updatePortfolio(updates)
       console.log('PortfolioContext - Update response:', response)
       
-      // Reload portfolio to get updated data (use admin endpoint since we're authenticated)
-      // Skip loading state to prevent UI flicker during updates
-      await loadPortfolio(true, true)
+      // Use the portfolio data from the response instead of reloading
+      // This avoids eventual consistency issues with blob storage
+      // The server returns the updated portfolio in the response, which is the source of truth
+      if (response.portfolio) {
+        // Update local state with the response data (which is the correct updated state)
+        setPortfolio(response.portfolio.sections || response.portfolio)
+        if (response.portfolio.sectionOrder) {
+          setSectionOrder(response.portfolio.sectionOrder)
+        }
+        console.log('PortfolioContext - Updated local state from response (avoiding eventual consistency issues)')
+      } else {
+        // Fallback: reload if response doesn't have portfolio data
+        // Add a delay to account for eventual consistency with blob storage
+        await new Promise(resolve => setTimeout(resolve, 500))
+        await loadPortfolio(true, true)
+      }
       return { success: true, data: response }
     } catch (err) {
       console.error('PortfolioContext - Update error:', err)
@@ -127,11 +140,17 @@ export const PortfolioProvider = ({ children }) => {
     }
 
     try {
-      await portfolioAPI.updateSectionOrder(newOrder)
-      // Update local state immediately
+      const response = await portfolioAPI.updateSectionOrder(newOrder)
+      // Update local state immediately with the new order
+      // The server has already updated it, so we trust the local state
       setSectionOrder(newOrder)
-      // Also reload to ensure consistency (skip loading state to prevent UI flicker)
-      await loadPortfolio(true, true)
+      
+      // Reload after a delay to sync with server (accounting for eventual consistency)
+      // But since we already updated local state, UI remains responsive
+      setTimeout(async () => {
+        await loadPortfolio(true, true)
+      }, 500)
+      
       return { success: true }
     } catch (err) {
       console.error('Error updating section order:', err)

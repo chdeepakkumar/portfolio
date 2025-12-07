@@ -60,12 +60,17 @@ const readResumeMetadata = async () => {
 // Helper to write resume metadata
 const writeResumeMetadata = async (metadata) => {
   try {
-    await storage.writeFile(RESUME_METADATA_FILE, JSON.stringify(metadata, null, 2))
+    // For blob storage, don't verify immediately (eventual consistency)
+    // For file system, verify immediately (immediate consistency)
+    const isBlobStorage = storage.isBlobStorage()
+    await storage.writeFile(RESUME_METADATA_FILE, JSON.stringify(metadata, null, 2), !isBlobStorage)
     
-    // Verify the write was successful
-    const exists = await storage.exists(RESUME_METADATA_FILE)
-    if (!exists) {
-      throw new Error('Resume metadata file was not created after write operation')
+    // Only verify for file system storage
+    if (!isBlobStorage) {
+      const exists = await storage.exists(RESUME_METADATA_FILE)
+      if (!exists) {
+        throw new Error('Resume metadata file was not created after write operation')
+      }
     }
   } catch (error) {
     console.error('❌ Error writing resume metadata:', error)
@@ -356,15 +361,25 @@ const readPortfolio = async () => {
 const writePortfolio = async (portfolio) => {
   try {
     // Write portfolio to file with proper formatting
-    await storage.writeFile(PORTFOLIO_FILE, JSON.stringify(portfolio, null, 2))
+    // For blob storage, don't verify immediately (eventual consistency)
+    // For file system, verify immediately (immediate consistency)
+    const isBlobStorage = storage.isBlobStorage()
+    await storage.writeFile(PORTFOLIO_FILE, JSON.stringify(portfolio, null, 2), !isBlobStorage)
     
-    // Verify the write was successful by checking if file exists
-    const exists = await storage.exists(PORTFOLIO_FILE)
-    if (!exists) {
-      throw new Error('Portfolio file was not created after write operation')
+    // Only verify for file system storage (immediate consistency)
+    // For blob storage, trust the write succeeded if no error was thrown
+    if (!isBlobStorage) {
+      const exists = await storage.exists(PORTFOLIO_FILE)
+      if (!exists) {
+        throw new Error('Portfolio file was not created after write operation')
+      }
     }
   } catch (error) {
     console.error('❌ Error writing portfolio file:', error)
+    // Provide more specific error messages
+    if (error.message?.includes('BLOB') || error.message?.includes('blob') || error.message?.includes('Blob storage')) {
+      throw new Error(`Storage error: ${error.message}. Please check blob storage configuration.`)
+    }
     throw error // Re-throw to let caller handle the error
   }
 }
@@ -563,22 +578,28 @@ router.put('/', authenticateToken, updateRateLimiter, async (req, res) => {
     await writePortfolio(portfolio)
     console.log('Portfolio written successfully')
     
-    // Small delay to ensure write is committed (for eventual consistency)
-    await new Promise(resolve => setTimeout(resolve, 100))
+    // For blob storage, skip immediate verification due to eventual consistency
+    // For file system, we can verify immediately
+    const isBlobStorage = storage.isBlobStorage()
     
-    // Verify the write by reading back the portfolio
-    const verifyPortfolio = await readPortfolio()
-    const sectionVisibilitiesAfterRead = Object.keys(verifyPortfolio.sections || {}).reduce((acc, key) => {
-      acc[key] = verifyPortfolio.sections[key]?.visible
-      return acc
-    }, {})
-    
-    console.log('Portfolio after write - verifying updates:', {
-      updatedSections: Object.keys(updates.sections || {}),
-      beforeWrite: sectionVisibilitiesBeforeWrite,
-      afterRead: sectionVisibilitiesAfterRead,
-      match: JSON.stringify(sectionVisibilitiesBeforeWrite) === JSON.stringify(sectionVisibilitiesAfterRead)
-    })
+    if (!isBlobStorage) {
+      // File system: verify immediately (immediate consistency)
+      const verifyPortfolio = await readPortfolio()
+      const sectionVisibilitiesAfterRead = Object.keys(verifyPortfolio.sections || {}).reduce((acc, key) => {
+        acc[key] = verifyPortfolio.sections[key]?.visible
+        return acc
+      }, {})
+      
+      console.log('Portfolio after write - verifying updates:', {
+        updatedSections: Object.keys(updates.sections || {}),
+        beforeWrite: sectionVisibilitiesBeforeWrite,
+        afterRead: sectionVisibilitiesAfterRead,
+        match: JSON.stringify(sectionVisibilitiesBeforeWrite) === JSON.stringify(sectionVisibilitiesAfterRead)
+      })
+    } else {
+      // Blob storage: log that we're trusting the write (eventual consistency)
+      console.log('Portfolio written to blob storage. Changes will be available shortly (eventual consistency).')
+    }
     
     // Use the in-memory portfolio (which we know is correct) instead of the read-back
     // This ensures we return the correct data even if there's eventual consistency issues
@@ -828,12 +849,17 @@ router.post('/knowledge-files', authenticateToken, uploadRateLimiter, upload.sin
     
     // Write file with proper error handling
     try {
-      await storage.writeFile(filePath, JSON.stringify(validation.data, null, 2))
+      // For blob storage, don't verify immediately (eventual consistency)
+      // For file system, verify immediately (immediate consistency)
+      const isBlobStorage = storage.isBlobStorage()
+      await storage.writeFile(filePath, JSON.stringify(validation.data, null, 2), !isBlobStorage)
       
-      // Verify the write was successful
-      const exists = await storage.exists(filePath)
-      if (!exists) {
-        throw new Error('File was not created after write operation')
+      // Only verify for file system storage
+      if (!isBlobStorage) {
+        const exists = await storage.exists(filePath)
+        if (!exists) {
+          throw new Error('File was not created after write operation')
+        }
       }
     } catch (writeError) {
       console.error('❌ Error writing knowledge file:', writeError)
@@ -1049,11 +1075,15 @@ router.post('/resume', authenticateToken, uploadRateLimiter, resumeUpload.single
     // Write file to storage (blob or file system)
     await storage.writeFileBuffer(finalFilePath, req.file.buffer)
     
-    // Verify file was written
-    const fileExists = await storage.exists(finalFilePath)
-    if (!fileExists) {
-      console.error('❌ Resume file was not found after upload:', finalFilePath)
-      return res.status(500).json({ error: 'Failed to save resume file' })
+    // For blob storage, don't verify immediately (eventual consistency)
+    // For file system, verify immediately (immediate consistency)
+    const isBlobStorage = storage.isBlobStorage()
+    if (!isBlobStorage) {
+      const fileExists = await storage.exists(finalFilePath)
+      if (!fileExists) {
+        console.error('❌ Resume file was not found after upload:', finalFilePath)
+        return res.status(500).json({ error: 'Failed to save resume file' })
+      }
     }
     
     // Update metadata - set as active if it's the first resume
