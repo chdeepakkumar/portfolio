@@ -1,4 +1,4 @@
-import { readFile, writeFile, readdir, unlink, stat } from 'fs/promises'
+import { readFile as fsReadFile, writeFile as fsWriteFile, readdir as fsReaddir, unlink as fsUnlink, stat as fsStat } from 'fs/promises'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { existsSync, mkdirSync } from 'fs'
@@ -63,7 +63,7 @@ export class Storage {
       // Use file system
       const fullPath = join(this.localDataDir, path)
       try {
-        return await readFile(fullPath, 'utf8')
+        return await fsReadFile(fullPath, 'utf8')
       } catch (error) {
         if (error.code === 'ENOENT') {
           throw new Error('ENOENT')
@@ -93,7 +93,7 @@ export class Storage {
       const fullPath = join(this.localDataDir, path)
       const dir = dirname(fullPath)
       this.ensureDir(dir)
-      await writeFile(fullPath, content, 'utf8')
+      await fsWriteFile(fullPath, content, 'utf8')
     }
   }
 
@@ -129,7 +129,7 @@ export class Storage {
       await del(path, { token: BLOB_STORE_TOKEN })
     } else {
       const fullPath = join(this.localDataDir, path)
-      await unlink(fullPath)
+      await fsUnlink(fullPath)
     }
   }
 
@@ -161,11 +161,11 @@ export class Storage {
       if (!existsSync(fullPath)) {
         return []
       }
-      const files = await readdir(fullPath)
+      const files = await fsReaddir(fullPath)
       const fileList = []
       for (const file of files) {
         const filePath = join(fullPath, file)
-        const stats = await stat(filePath)
+        const stats = await fsStat(filePath)
         fileList.push({
           name: file,
           size: stats.size,
@@ -190,7 +190,7 @@ export class Storage {
       }
     } else {
       const fullPath = join(this.localDataDir, path)
-      const stats = await stat(fullPath)
+      const stats = await fsStat(fullPath)
       return {
         size: stats.size,
         modified: stats.mtime
@@ -214,7 +214,7 @@ export class Storage {
       return Buffer.from(arrayBuffer)
     } else {
       const fullPath = join(this.localDataDir, path)
-      return await readFile(fullPath)
+      return await fsReadFile(fullPath)
     }
   }
 
@@ -235,7 +235,7 @@ export class Storage {
       const fullPath = join(this.localDataDir, path)
       const dir = dirname(fullPath)
       this.ensureDir(dir)
-      await writeFile(fullPath, buffer)
+      await fsWriteFile(fullPath, buffer)
     }
   }
 }
