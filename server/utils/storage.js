@@ -22,6 +22,13 @@ export class Storage {
   constructor() {
     this.isVercel = isVercel && !!BLOB_STORE_TOKEN
     this.localDataDir = LOCAL_DATA_DIR
+    
+    // Warn if on Vercel but blob token is missing
+    if (isVercel && !BLOB_STORE_TOKEN) {
+      console.warn('⚠️ WARNING: Running on Vercel but BLOB_READ_WRITE_TOKEN is not set!')
+      console.warn('⚠️ File operations will fail. Please create a Blob Store in Vercel Dashboard.')
+      console.warn('⚠️ See VERCEL_BLOB_SETUP.md for instructions.')
+    }
   }
 
   /**
@@ -41,22 +48,24 @@ export class Storage {
   async readFile(path) {
     if (this.isVercel) {
       // Use Vercel Blob
+      if (!BLOB_STORE_TOKEN) {
+        throw new Error('BLOB_READ_WRITE_TOKEN not configured. Please create a Blob Store in Vercel Dashboard.')
+      }
       try {
         const blob = await head(path, { token: BLOB_STORE_TOKEN })
-        // For JSON files, we'll need to fetch the content
-        // Vercel Blob doesn't have a direct read API, so we'll use list and then fetch
-        // Actually, we need to use a different approach - store content in blob metadata or use a different method
-        // Let me check the Vercel Blob API...
-        // Actually, we can use the blob URL to fetch content
+        // Fetch content from blob URL
         const response = await fetch(blob.url)
         if (!response.ok) {
-          throw new Error(`Failed to fetch blob: ${response.statusText}`)
+          throw new Error(`Failed to fetch blob: ${response.statusText} (${response.status})`)
         }
         return await response.text()
       } catch (error) {
-        if (error.statusCode === 404) {
+        // Handle 404 or not found errors
+        if (error.statusCode === 404 || error.message?.includes('404') || error.message?.includes('not found')) {
           throw new Error('ENOENT')
         }
+        // Log the actual error for debugging
+        console.error(`❌ Error reading blob ${path}:`, error.message || error)
         throw error
       }
     } else {
@@ -82,12 +91,20 @@ export class Storage {
   async writeFile(path, content) {
     if (this.isVercel) {
       // Use Vercel Blob
-      const contentBuffer = typeof content === 'string' ? Buffer.from(content, 'utf8') : content
-      await put(path, contentBuffer, {
-        token: BLOB_STORE_TOKEN,
-        access: 'public', // Make files publicly accessible
-        addRandomSuffix: false // Keep original filename
-      })
+      if (!BLOB_STORE_TOKEN) {
+        throw new Error('BLOB_READ_WRITE_TOKEN not configured. Please create a Blob Store in Vercel Dashboard.')
+      }
+      try {
+        const contentBuffer = typeof content === 'string' ? Buffer.from(content, 'utf8') : content
+        await put(path, contentBuffer, {
+          token: BLOB_STORE_TOKEN,
+          access: 'public', // Make files publicly accessible
+          addRandomSuffix: false // Keep original filename
+        })
+      } catch (error) {
+        console.error(`❌ Error writing blob ${path}:`, error.message || error)
+        throw error
+      }
     } else {
       // Use file system
       const fullPath = join(this.localDataDir, path)
@@ -105,13 +122,19 @@ export class Storage {
   async exists(path) {
     if (this.isVercel) {
       try {
+        if (!BLOB_STORE_TOKEN) {
+          console.warn('⚠️ BLOB_READ_WRITE_TOKEN not configured, cannot check blob existence')
+          return false
+        }
         await head(path, { token: BLOB_STORE_TOKEN })
         return true
       } catch (error) {
-        if (error.statusCode === 404) {
+        if (error.statusCode === 404 || error.message?.includes('404') || error.message?.includes('not found')) {
           return false
         }
-        throw error
+        // Log unexpected errors but don't throw - return false instead
+        console.error(`❌ Error checking blob existence ${path}:`, error.message || error)
+        return false
       }
     } else {
       const fullPath = join(this.localDataDir, path)

@@ -47,9 +47,11 @@ const readUsers = async () => {
       // Use ADMIN_EMAIL from environment - must be set
       const adminEmail = process.env.ADMIN_EMAIL
       if (!adminEmail) {
+        console.error('❌ ADMIN_EMAIL environment variable not set')
         throw new Error('ADMIN_EMAIL environment variable must be set in .env file')
       }
       
+      console.log('📝 Creating default user file...')
       const defaultUsers = {
         users: [{
           id: '1',
@@ -58,16 +60,28 @@ const readUsers = async () => {
           createdAt: new Date().toISOString()
         }]
       }
-      await storage.writeFile(USERS_FILE, JSON.stringify(defaultUsers, null, 2))
-      return defaultUsers
+      try {
+        await storage.writeFile(USERS_FILE, JSON.stringify(defaultUsers, null, 2))
+        console.log('✅ Default user file created successfully')
+        return defaultUsers
+      } catch (writeError) {
+        console.error('❌ Error creating default user file:', writeError)
+        throw new Error(`Failed to create user file: ${writeError.message}`)
+      }
     }
+    console.error('❌ Error reading users file:', error)
     throw error
   }
 }
 
 // Helper to write users
 const writeUsers = async (users) => {
-  await storage.writeFile(USERS_FILE, JSON.stringify(users, null, 2))
+  try {
+    await storage.writeFile(USERS_FILE, JSON.stringify(users, null, 2))
+  } catch (error) {
+    console.error('❌ Error writing users file:', error)
+    throw new Error(`Failed to save user data: ${error.message}`)
+  }
 }
 
 // Request OTP
@@ -207,8 +221,25 @@ router.post('/login', async (req, res) => {
       }
     })
   } catch (error) {
-    console.error('Login error:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    console.error('❌ Login error:', error)
+    console.error('Error stack:', error.stack)
+    console.error('Error message:', error.message)
+    
+    // Provide more specific error messages
+    if (error.message?.includes('JWT_SECRET') || error.message?.includes('JWT_REFRESH_SECRET')) {
+      return res.status(500).json({ error: 'Server configuration error: JWT secrets not configured' })
+    }
+    if (error.message?.includes('ENOENT') || error.message?.includes('not found')) {
+      return res.status(500).json({ error: 'User data not found. Please contact administrator.' })
+    }
+    if (error.message?.includes('BLOB') || error.message?.includes('blob')) {
+      return res.status(500).json({ error: 'Storage error. Please check blob storage configuration.' })
+    }
+    
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
   }
 })
 
