@@ -2,9 +2,11 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import rateLimit from 'express-rate-limit'
+import cookieParser from 'cookie-parser'
 import authRoutes from './routes/auth.js'
 import portfolioRoutes from './routes/portfolio.js'
 import { authenticateToken } from './middleware/auth.js'
+import { sessionMiddleware, getSessionId } from './middleware/session.js'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { existsSync, mkdirSync } from 'fs'
@@ -62,10 +64,11 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id'],
   preflightContinue: false,
   optionsSuccessStatus: 204
 }))
+app.use(cookieParser())
 app.use(express.json({ limit: '1mb' }))
 app.use(express.urlencoded({ extended: true, limit: '1mb' }))
 
@@ -88,7 +91,7 @@ app.use((req, res, next) => {
   next()
 })
 
-// Rate limiting configurations
+// Rate limiting configurations - all use session-based identification
 const otpRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 10, // 10 requests per window
@@ -96,7 +99,9 @@ const otpRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: false,
-  skipFailedRequests: false
+  skipFailedRequests: false,
+  // Use session-based identification
+  keyGenerator: (req) => getSessionId(req)
 })
 
 // Rate limiter for authentication endpoints (login, refresh)
@@ -105,7 +110,9 @@ const authRateLimiter = rateLimit({
   max: 10, // 10 requests per minute
   message: { error: 'Too many authentication requests, please try again later' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  // Use session-based identification
+  keyGenerator: (req) => getSessionId(req)
 })
 
 // Rate limiter for portfolio updates and file uploads
@@ -114,7 +121,9 @@ const updateRateLimiter = rateLimit({
   max: 10, // 10 requests per minute
   message: { error: 'Too many update requests, please try again later' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  // Use session-based identification
+  keyGenerator: (req) => getSessionId(req)
 })
 
 // Rate limiter for file uploads (more restrictive)
@@ -123,7 +132,9 @@ const uploadRateLimiter = rateLimit({
   max: 10, // 10 requests per minute
   message: { error: 'Too many file upload requests, please try again later' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  // Use session-based identification
+  keyGenerator: (req) => getSessionId(req)
 })
 
 // If behind a reverse proxy (e.g., nginx, load balancer), uncomment the line below
@@ -152,8 +163,10 @@ app.use('/api/auth/refresh', (req, res, next) => {
   }
   authRateLimiter(req, res, next)
 })
-app.use('/api/auth', authRoutes)
-app.use('/api/portfolio', portfolioRoutes)
+// Apply session middleware to auth routes for session-based rate limiting
+app.use('/api/auth', sessionMiddleware, authRoutes)
+// Apply session middleware to portfolio routes for session-based rate limiting
+app.use('/api/portfolio', sessionMiddleware, portfolioRoutes)
 
 // Health check endpoints
 // Public health check (for regular operations)

@@ -75,9 +75,12 @@ const Chatbot = () => {
       setMessages(prev => [...prev, { type: 'bot', text: answer }])
     } catch (error) {
       console.error('Error generating answer:', error)
+      const errorMessage = error.message && error.message.includes('Rate limit')
+        ? error.message
+        : "I'm sorry, I encountered an error. Please try asking your question again. If this persists, please check if the Gemini API key is configured."
       setMessages(prev => [...prev, {
         type: 'bot',
-        text: "I'm sorry, I encountered an error. Please try asking your question again. If this persists, please check if the Gemini API key is configured."
+        text: errorMessage
       }])
     } finally {
       setIsLoading(false)

@@ -3,6 +3,7 @@ import { normalize } from 'path'
 import multer from 'multer'
 import rateLimit from 'express-rate-limit'
 import { authenticateToken } from '../middleware/auth.js'
+import { getSessionId } from '../middleware/session.js'
 import { validateKnowledgeFileFromBuffer } from '../utils/jsonValidator.js'
 import { generateResumePDF } from '../utils/generateResumePDF.js'
 import { storage } from '../utils/storage.js'
@@ -17,12 +18,15 @@ const RESUME_METADATA_FILE = `${RESUME_DIR}/.resume-metadata.json`
 const MAX_RESUMES = 10
 
 // Rate limiters for portfolio routes
+// Uses session-based identification (user ID for authenticated, session ID for unauthenticated)
 const updateRateLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
   max: 10, // 10 requests per minute
   message: { error: 'Too many update requests, please try again later' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  // Use session-based identification
+  keyGenerator: (req) => getSessionId(req)
 })
 
 const uploadRateLimiter = rateLimit({
@@ -30,7 +34,9 @@ const uploadRateLimiter = rateLimit({
   max: 10, // 10 requests per minute
   message: { error: 'Too many file upload requests, please try again later' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  // Use session-based identification
+  keyGenerator: (req) => getSessionId(req)
 })
 
 const generateResumeRateLimiter = rateLimit({
@@ -38,7 +44,24 @@ const generateResumeRateLimiter = rateLimit({
   max: 10, // 10 requests per minute
   message: { error: 'Too many resume generation requests, please try again later' },
   standardHeaders: true,
-  legacyHeaders: false
+  legacyHeaders: false,
+  // Use session-based identification
+  keyGenerator: (req) => getSessionId(req)
+})
+
+// Rate limiter for chatbot/knowledge files endpoints
+// Allows 5 requests per minute to prevent quota exhaustion
+// Uses session-based identification (session ID or user ID)
+const chatbotRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 5, // 5 requests per minute
+  message: { error: 'Too many requests. Please wait a moment before trying again. (5 requests per minute limit)' },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+  skipFailedRequests: false,
+  // Use session-based identification
+  keyGenerator: (req) => getSessionId(req)
 })
 
 // Helper to read resume metadata
@@ -704,7 +727,8 @@ const resumeUpload = multer({
 })
 
 // Get all knowledge files (public - for chatbot)
-router.get('/knowledge-files', async (req, res) => {
+// Rate limited to prevent quota exhaustion
+router.get('/knowledge-files', chatbotRateLimiter, async (req, res) => {
   try {
     const files = await storage.listFiles(KNOWLEDGE_DIR)
     const jsonFiles = files.filter(f => f.name.endsWith('.json'))
@@ -723,7 +747,8 @@ router.get('/knowledge-files', async (req, res) => {
 })
 
 // Get specific knowledge file content (public - for chatbot)
-router.get('/knowledge-files/:filename', async (req, res) => {
+// Rate limited to prevent quota exhaustion
+router.get('/knowledge-files/:filename', chatbotRateLimiter, async (req, res) => {
   try {
     const { filename } = req.params
     

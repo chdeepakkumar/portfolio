@@ -5,6 +5,36 @@ let knowledgeBase = null
 let knowledgeText = null
 let isProcessing = false
 
+// Rate limiting for Gemini API calls (client-side)
+let lastRequestTime = 0
+let requestCount = 0
+const RATE_LIMIT_WINDOW = 60 * 1000 // 1 minute
+const MAX_REQUESTS_PER_MINUTE = 5
+
+/**
+ * Check if we can make a request based on rate limit
+ */
+function canMakeRequest() {
+  const now = Date.now()
+  
+  // Reset counter if window has passed
+  if (now - lastRequestTime > RATE_LIMIT_WINDOW) {
+    requestCount = 0
+    lastRequestTime = now
+  }
+  
+  // Check if we've exceeded the limit
+  if (requestCount >= MAX_REQUESTS_PER_MINUTE) {
+    const timeUntilReset = RATE_LIMIT_WINDOW - (now - lastRequestTime)
+    const secondsUntilReset = Math.ceil(timeUntilReset / 1000)
+    throw new Error(`Rate limit exceeded. Please wait ${secondsUntilReset} second${secondsUntilReset !== 1 ? 's' : ''} before trying again. (Limit: ${MAX_REQUESTS_PER_MINUTE} requests per minute)`)
+  }
+  
+  // Increment counter
+  requestCount++
+  return true
+}
+
 // Initialize Gemini on module load
 initializeGemini()
 
@@ -109,9 +139,21 @@ async function loadAllKnowledgeFiles() {
 
 /**
  * Initialize chatbot by loading all knowledge files
+ * Prevents duplicate initializations
  */
 export async function initializeChatbot() {
-  if (isProcessing) return
+  // If already processing, wait for it to complete
+  if (isProcessing) {
+    // Wait up to 5 seconds for processing to complete
+    let waitCount = 0
+    while (isProcessing && waitCount < 50) {
+      await new Promise(resolve => setTimeout(resolve, 100))
+      waitCount++
+    }
+    if (knowledgeBase) return knowledgeBase
+  }
+  
+  // If already initialized, return cached data
   if (knowledgeBase) return knowledgeBase
   
   isProcessing = true
@@ -124,7 +166,8 @@ export async function initializeChatbot() {
   } catch (error) {
     isProcessing = false
     console.error('Error initializing chatbot:', error)
-    throw error
+    // Don't throw - allow chatbot to work with empty knowledge base
+    return {}
   }
 }
 
@@ -266,11 +309,20 @@ export async function generateAnswer(query) {
   // Check if Gemini is available
   if (isGeminiAvailable()) {
     try {
+      // Check rate limit before making request
+      canMakeRequest()
+      
       // Use Gemini AI to generate answer with only relevant sections
       const answer = await generateAnswerWithGemini(relevantContent, query)
       return answer
     } catch (error) {
       console.error('Error with Gemini AI:', error)
+      
+      // If it's a rate limit error, return it directly
+      if (error.message && error.message.includes('Rate limit exceeded')) {
+        return `⚠️ **Rate Limit Exceeded**\n\n${error.message}\n\nThis helps prevent quota exhaustion. Please wait before asking another question.`
+      }
+      
       // Return proper error message instead of fallback
       return getErrorMessage(error)
     }
