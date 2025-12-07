@@ -427,26 +427,47 @@ router.get('/admin', authenticateToken, async (req, res) => {
 
 // Deep merge helper function
 // Arrays are replaced (not merged) since editors send complete arrays
+// Primitive values (including booleans) are replaced
 const deepMerge = (target, source) => {
-  const output = { ...target }
-  if (isObject(target) && isObject(source)) {
-    Object.keys(source).forEach(key => {
-      // Arrays are replaced entirely
-      if (Array.isArray(source[key])) {
-        output[key] = source[key]
-      } else if (isObject(source[key])) {
-        // Recursively merge nested objects
-        if (!(key in target) || !isObject(target[key])) {
-          output[key] = source[key]
-        } else {
-          output[key] = deepMerge(target[key], source[key])
-        }
-      } else {
-        // Primitive values are replaced
-        output[key] = source[key]
-      }
-    })
+  // If source is null or undefined, return target
+  if (source == null) {
+    return target
   }
+  
+  // If target is not an object or source is not an object, return source
+  if (!isObject(target) || !isObject(source)) {
+    return source
+  }
+  
+  const output = { ...target }
+  
+  // Process all keys in source
+  Object.keys(source).forEach(key => {
+    const sourceValue = source[key]
+    const targetValue = target[key]
+    
+    // Arrays are replaced entirely
+    if (Array.isArray(sourceValue)) {
+      output[key] = sourceValue
+    } 
+    // Null values are replaced (to allow clearing)
+    else if (sourceValue === null) {
+      output[key] = null
+    }
+    // Objects are recursively merged
+    else if (isObject(sourceValue)) {
+      if (!(key in target) || !isObject(targetValue)) {
+        output[key] = sourceValue
+      } else {
+        output[key] = deepMerge(targetValue, sourceValue)
+      }
+    } 
+    // Primitive values (strings, numbers, booleans, undefined) are replaced
+    else {
+      output[key] = sourceValue
+    }
+  })
+  
   return output
 }
 
@@ -475,14 +496,22 @@ router.put('/', authenticateToken, updateRateLimiter, async (req, res) => {
     if (updates.sections) {
       Object.keys(updates.sections).forEach(sectionId => {
         if (portfolio.sections[sectionId]) {
+          const beforeUpdate = JSON.stringify(portfolio.sections[sectionId])
           // Deep merge existing section
           portfolio.sections[sectionId] = deepMerge(
             portfolio.sections[sectionId],
             updates.sections[sectionId]
           )
+          const afterUpdate = JSON.stringify(portfolio.sections[sectionId])
+          console.log(`Updated section ${sectionId}:`, {
+            before: JSON.parse(beforeUpdate),
+            update: updates.sections[sectionId],
+            after: JSON.parse(afterUpdate)
+          })
         } else {
           // Create new section if it doesn't exist (e.g., hero)
           portfolio.sections[sectionId] = updates.sections[sectionId]
+          console.log(`Created new section ${sectionId}:`, updates.sections[sectionId])
         }
       })
     }
@@ -494,7 +523,19 @@ router.put('/', authenticateToken, updateRateLimiter, async (req, res) => {
 
     // Write updated portfolio to file
     await writePortfolio(portfolio)
-    res.json({ message: 'Portfolio updated successfully', portfolio })
+    
+    // Verify the write by reading back the portfolio
+    const verifyPortfolio = await readPortfolio()
+    console.log('Portfolio after write - verifying updates:', {
+      updatedSections: Object.keys(updates.sections || {}),
+      achievementsVisible: verifyPortfolio.sections?.achievements?.visible,
+      allSectionVisibilities: Object.keys(verifyPortfolio.sections || {}).reduce((acc, key) => {
+        acc[key] = verifyPortfolio.sections[key]?.visible
+        return acc
+      }, {})
+    })
+    
+    res.json({ message: 'Portfolio updated successfully', portfolio: verifyPortfolio })
   } catch (error) {
     console.error('❌ Update portfolio error:', error)
     console.error('Error stack:', error.stack)
