@@ -166,20 +166,45 @@ app.get('/api/health', (req, res) => {
 })
 
 // Storage diagnostic endpoint (for debugging)
-app.get('/api/health/storage', authenticateToken, (req, res) => {
-  const isVercel = process.env.VERCEL === '1'
-  const hasBlobToken = !!process.env.BLOB_READ_WRITE_TOKEN
-  const storageType = isVercel && hasBlobToken ? 'Vercel Blob' : isVercel ? 'Vercel (no blob token)' : 'File System'
-  
-  res.json({
-    storageType,
-    isVercel,
-    hasBlobToken,
-    blobTokenLength: process.env.BLOB_READ_WRITE_TOKEN?.length || 0,
-    message: isVercel && !hasBlobToken 
-      ? '⚠️ Blob store not configured. Create a Blob Store in Vercel Dashboard.'
-      : '✅ Storage configured correctly'
-  })
+app.get('/api/health/storage', authenticateToken, async (req, res) => {
+  try {
+    const isVercel = process.env.VERCEL === '1'
+    const hasBlobToken = !!process.env.BLOB_READ_WRITE_TOKEN
+    const storageType = isVercel && hasBlobToken ? 'Vercel Blob' : isVercel ? 'Vercel (no blob token)' : 'File System'
+    
+    let allFiles = []
+    if (isVercel && hasBlobToken) {
+      try {
+        const { list } = await import('@vercel/blob')
+        const result = await list({
+          token: process.env.BLOB_READ_WRITE_TOKEN,
+          limit: 1000 // Get up to 1000 files
+        })
+        allFiles = result.blobs.map(blob => ({
+          path: blob.pathname,
+          size: blob.size,
+          uploadedAt: blob.uploadedAt
+        }))
+      } catch (error) {
+        console.error('Error listing blobs:', error)
+        allFiles = [{ error: error.message }]
+      }
+    }
+    
+    res.json({
+      storageType,
+      isVercel,
+      hasBlobToken,
+      blobTokenLength: process.env.BLOB_READ_WRITE_TOKEN?.length || 0,
+      message: isVercel && !hasBlobToken 
+        ? '⚠️ Blob store not configured. Create a Blob Store in Vercel Dashboard.'
+        : '✅ Storage configured correctly',
+      totalFiles: allFiles.length,
+      files: allFiles
+    })
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
 })
 
 // Admin health check (protected - for admin operations)

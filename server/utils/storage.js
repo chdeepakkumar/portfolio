@@ -110,7 +110,8 @@ export class Storage {
         await put(path, contentBuffer, {
           token: BLOB_STORE_TOKEN,
           access: 'public', // Make files publicly accessible
-          addRandomSuffix: false // Keep original filename
+          addRandomSuffix: false, // Keep original filename
+          allowOverwrite: true // Allow overwriting existing files
         })
       } catch (error) {
         console.error(`❌ Error writing blob ${path}:`, {
@@ -270,7 +271,8 @@ export class Storage {
       await put(path, buffer, {
         token: BLOB_STORE_TOKEN,
         access: 'public',
-        addRandomSuffix: false
+        addRandomSuffix: false,
+        allowOverwrite: true // Allow overwriting existing files
       })
     } else {
       const fullPath = join(this.localDataDir, path)
