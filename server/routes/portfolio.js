@@ -497,7 +497,25 @@ router.put('/', authenticateToken, updateRateLimiter, async (req, res) => {
     res.json({ message: 'Portfolio updated successfully', portfolio })
   } catch (error) {
     console.error('❌ Update portfolio error:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    console.error('Error stack:', error.stack)
+    console.error('Error message:', error.message)
+    
+    // Provide more specific error messages
+    if (error.message?.includes('BLOB') || error.message?.includes('blob') || error.message?.includes('storage')) {
+      return res.status(500).json({ 
+        error: `Storage error: ${error.message}. Please check blob storage configuration.` 
+      })
+    }
+    if (error.message?.includes('ENOENT')) {
+      return res.status(500).json({ 
+        error: 'Portfolio file not found. Please contact administrator.' 
+      })
+    }
+    
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
   }
 })
 
@@ -521,14 +539,28 @@ router.put('/sections', authenticateToken, updateRateLimiter, async (req, res) =
       return res.status(400).json({ error: 'sectionOrder must be an array' })
     }
 
+    // Validate that all section IDs in order exist in portfolio
     const portfolio = await readPortfolio()
+    const validSections = Object.keys(portfolio.sections)
+    const invalidSections = sectionOrder.filter(id => !validSections.includes(id) && id !== 'hero')
+    
+    if (invalidSections.length > 0) {
+      return res.status(400).json({ 
+        error: `Invalid section IDs in order: ${invalidSections.join(', ')}` 
+      })
+    }
+
     portfolio.sectionOrder = sectionOrder
     await writePortfolio(portfolio)
 
     res.json({ message: 'Section order updated successfully', sectionOrder })
   } catch (error) {
-    console.error('Update section order error:', error)
-    res.status(500).json({ error: 'Internal server error' })
+    console.error('❌ Update section order error:', error)
+    console.error('Error stack:', error.stack)
+    res.status(500).json({ 
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
   }
 })
 

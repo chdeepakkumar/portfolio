@@ -138,6 +138,8 @@ const SectionManager = ({ onNotification }) => {
   )
 
   useEffect(() => {
+    console.log('SectionManager useEffect - portfolio:', portfolio, 'sectionOrder:', sectionOrder)
+    
     if (portfolio && sectionOrder && sectionOrder.length > 0) {
       // Build sections list from sectionOrder, ensuring all sections are included
       // This ensures hidden sections remain in the list so they can be toggled back on
@@ -150,39 +152,58 @@ const SectionManager = ({ onNotification }) => {
           visible: sectionData?.visible ?? true
         }
       })
+      console.log('Setting sections list:', sectionsList)
       setSections(sectionsList)
+    } else if (portfolio && (!sectionOrder || sectionOrder.length === 0)) {
+      // If portfolio exists but no sectionOrder, show empty state
+      console.warn('No section order found, portfolio sections:', Object.keys(portfolio))
+      setSections([])
+    } else if (!portfolio) {
+      console.log('Portfolio is null, waiting for data...')
+      setSections([])
     }
   }, [portfolio, sectionOrder])
 
   const handleDragEnd = async (event) => {
     const { active, over } = event
 
-    if (active.id !== over.id) {
-      const oldIndex = sections.findIndex((s) => s.id === active.id)
-      const newIndex = sections.findIndex((s) => s.id === over.id)
+    if (!over || active.id === over.id) {
+      return // No change or invalid drop target
+    }
 
-      const newSections = arrayMove(sections, oldIndex, newIndex)
-      const updatedSections = newSections.map((s, idx) => ({
-        ...s,
-        order: idx + 1
-      }))
-      setSections(updatedSections)
+    const oldIndex = sections.findIndex((s) => s.id === active.id)
+    const newIndex = sections.findIndex((s) => s.id === over.id)
 
-      const newOrder = updatedSections.map((s) => s.id)
-      try {
-        await updateSectionOrder(newOrder)
-        onNotification('Section order updated successfully', 'success')
-      } catch (error) {
-        onNotification('Failed to update section order', 'error')
-        // Revert on error
-        setSections(sections)
-      }
+    if (oldIndex === -1 || newIndex === -1) {
+      console.error('Invalid section indices:', { oldIndex, newIndex, activeId: active.id, overId: over.id })
+      return
+    }
+
+    const newSections = arrayMove(sections, oldIndex, newIndex)
+    const updatedSections = newSections.map((s, idx) => ({
+      ...s,
+      order: idx + 1
+    }))
+    setSections(updatedSections)
+
+    const newOrder = updatedSections.map((s) => s.id)
+    try {
+      await updateSectionOrder(newOrder)
+      onNotification('Section order updated successfully', 'success')
+    } catch (error) {
+      console.error('Error updating section order:', error)
+      onNotification(error.message || 'Failed to update section order', 'error')
+      // Revert on error
+      setSections(sections)
     }
   }
 
   const handleToggle = async (sectionId) => {
     const section = sections.find((s) => s.id === sectionId)
-    if (!section) return
+    if (!section) {
+      console.error('Section not found:', sectionId)
+      return
+    }
 
     const newVisibleState = !section.visible
     // Optimistically update local state
@@ -206,7 +227,8 @@ const SectionManager = ({ onNotification }) => {
       // Note: updatePortfolio already calls loadPortfolio which will trigger useEffect
       // to sync sections with the updated portfolio data
     } catch (error) {
-      onNotification('Failed to update section visibility', 'error')
+      console.error('Error updating section visibility:', error)
+      onNotification(error.message || 'Failed to update section visibility', 'error')
       // Revert on error - restore original state
       const revertedSections = sections.map((s) =>
         s.id === sectionId ? { ...s, visible: section.visible } : s
@@ -215,8 +237,43 @@ const SectionManager = ({ onNotification }) => {
     }
   }
 
+  // Debug logging
+  console.log('SectionManager render - portfolio:', portfolio, 'sectionOrder:', sectionOrder, 'sections:', sections)
+
   if (!portfolio) {
-    return <div className="empty-state">Loading sections...</div>
+    return (
+      <div className="empty-state">
+        <p>Loading sections...</p>
+        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+          Waiting for portfolio data to load...
+        </p>
+        <button onClick={() => reloadPortfolio(true)} style={{ marginTop: '1rem' }}>Retry Loading</button>
+      </div>
+    )
+  }
+
+  if (!sectionOrder || sectionOrder.length === 0) {
+    return (
+      <div className="empty-state">
+        <p>No sections found. Please check your portfolio data.</p>
+        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+          Portfolio loaded but sectionOrder is empty. Available sections: {Object.keys(portfolio).join(', ')}
+        </p>
+        <button onClick={() => reloadPortfolio(true)}>Reload Portfolio</button>
+      </div>
+    )
+  }
+
+  if (sections.length === 0) {
+    return (
+      <div className="empty-state">
+        <p>No sections to display.</p>
+        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+          Section order has {sectionOrder.length} items but sections list is empty.
+        </p>
+        <button onClick={() => reloadPortfolio(true)}>Reload Portfolio</button>
+      </div>
+    )
   }
 
   return (

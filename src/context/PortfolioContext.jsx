@@ -19,16 +19,40 @@ export const PortfolioProvider = ({ children }) => {
   const [error, setError] = useState(null)
   const { isAuthenticated } = useAuth()
 
-  const loadPortfolio = useCallback(async (useAdminEndpoint = false) => {
+  const loadPortfolio = useCallback(async (useAdminEndpoint = false, skipLoadingState = false) => {
     try {
-      setLoading(true)
+      if (!skipLoadingState) {
+        setLoading(true)
+      }
       setError(null)
       // Use admin endpoint if authenticated to get all sections (including invisible)
       const data = useAdminEndpoint && isAuthenticated
         ? await portfolioAPI.getAdminPortfolio()
         : await portfolioAPI.getPortfolio()
-      setPortfolio(data.sections)
-      setSectionOrder(data.sectionOrder)
+      
+      console.log('PortfolioContext - Received data:', {
+        hasSections: !!data.sections,
+        sectionsKeys: data.sections ? Object.keys(data.sections) : [],
+        hasSectionOrder: !!data.sectionOrder,
+        sectionOrderLength: data.sectionOrder?.length || 0,
+        sectionOrder: data.sectionOrder,
+        useAdminEndpoint,
+        isAuthenticated
+      })
+      
+      if (!data.sections) {
+        console.warn('PortfolioContext - No sections in response, setting empty object')
+        setPortfolio({})
+      } else {
+        setPortfolio(data.sections)
+      }
+      
+      if (!data.sectionOrder) {
+        console.warn('PortfolioContext - No sectionOrder in response, setting empty array')
+        setSectionOrder([])
+      } else {
+        setSectionOrder(data.sectionOrder)
+      }
     } catch (err) {
       const errorMessage = err.response?.data?.error || err.message || 'Failed to load portfolio'
       setError(errorMessage)
@@ -58,6 +82,10 @@ export const PortfolioProvider = ({ children }) => {
         // Something else happened
         console.error('Error setting up request:', err.message)
       }
+      
+      // Set empty state on error to prevent infinite loading
+      setPortfolio({})
+      setSectionOrder([])
     } finally {
       setLoading(false)
     }
@@ -73,11 +101,16 @@ export const PortfolioProvider = ({ children }) => {
     }
 
     try {
+      console.log('PortfolioContext - Updating portfolio with:', updates)
       const response = await portfolioAPI.updatePortfolio(updates)
+      console.log('PortfolioContext - Update response:', response)
+      
       // Reload portfolio to get updated data (use admin endpoint since we're authenticated)
-      await loadPortfolio(true)
+      // Skip loading state to prevent UI flicker during updates
+      await loadPortfolio(true, true)
       return { success: true, data: response }
     } catch (err) {
+      console.error('PortfolioContext - Update error:', err)
       throw new Error(err.response?.data?.error || 'Failed to update portfolio')
     }
   }
@@ -89,9 +122,13 @@ export const PortfolioProvider = ({ children }) => {
 
     try {
       await portfolioAPI.updateSectionOrder(newOrder)
+      // Update local state immediately
       setSectionOrder(newOrder)
+      // Also reload to ensure consistency (skip loading state to prevent UI flicker)
+      await loadPortfolio(true, true)
       return { success: true }
     } catch (err) {
+      console.error('Error updating section order:', err)
       throw new Error(err.response?.data?.error || 'Failed to update section order')
     }
   }
