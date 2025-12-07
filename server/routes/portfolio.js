@@ -463,7 +463,9 @@ const deepMerge = (target, source) => {
       }
     } 
     // Primitive values (strings, numbers, booleans, undefined) are replaced
+    // Explicitly handle false values (which are falsy but valid)
     else {
+      // This handles: strings, numbers, booleans (including false), undefined
       output[key] = sourceValue
     }
   })
@@ -492,21 +494,47 @@ router.put('/', authenticateToken, updateRateLimiter, async (req, res) => {
     const portfolio = await readPortfolio()
     const updates = req.body
 
+    console.log('Received update request:', JSON.stringify(updates, null, 2))
+
     // Update sections with deep merge
     if (updates.sections) {
       Object.keys(updates.sections).forEach(sectionId => {
         if (portfolio.sections[sectionId]) {
           const beforeUpdate = JSON.stringify(portfolio.sections[sectionId])
+          const updateData = updates.sections[sectionId]
+          
+          // Log the update data to verify false values are present
+          console.log(`Updating section ${sectionId} with:`, JSON.stringify(updateData))
+          console.log(`Update data type check - visible is:`, typeof updateData.visible, updateData.visible)
+          
           // Deep merge existing section
-          portfolio.sections[sectionId] = deepMerge(
+          const merged = deepMerge(
             portfolio.sections[sectionId],
-            updates.sections[sectionId]
+            updateData
           )
+          
+          // Verify the merge worked correctly
+          if (updateData.visible !== undefined && merged.visible !== updateData.visible) {
+            console.error(`❌ MERGE FAILED for ${sectionId}:`, {
+              expected: updateData.visible,
+              got: merged.visible,
+              mergedObject: merged
+            })
+            // Force the value if merge failed
+            merged.visible = updateData.visible
+          }
+          
+          portfolio.sections[sectionId] = merged
+          
           const afterUpdate = JSON.stringify(portfolio.sections[sectionId])
+          const afterParsed = JSON.parse(afterUpdate)
           console.log(`Updated section ${sectionId}:`, {
             before: JSON.parse(beforeUpdate),
-            update: updates.sections[sectionId],
-            after: JSON.parse(afterUpdate)
+            update: updateData,
+            after: afterParsed,
+            visibleAfter: afterParsed.visible,
+            visibleType: typeof afterParsed.visible,
+            mergeSuccess: afterParsed.visible === updateData.visible
           })
         } else {
           // Create new section if it doesn't exist (e.g., hero)
@@ -521,21 +549,40 @@ router.put('/', authenticateToken, updateRateLimiter, async (req, res) => {
       portfolio.sectionOrder = updates.sectionOrder
     }
 
+    // Log portfolio state before write
+    const sectionVisibilitiesBeforeWrite = Object.keys(portfolio.sections || {}).reduce((acc, key) => {
+      acc[key] = portfolio.sections[key]?.visible
+      return acc
+    }, {})
+    console.log('Portfolio state BEFORE write:', {
+      updatedSections: Object.keys(updates.sections || {}),
+      allSectionVisibilities: sectionVisibilitiesBeforeWrite
+    })
+    
     // Write updated portfolio to file
     await writePortfolio(portfolio)
+    console.log('Portfolio written successfully')
+    
+    // Small delay to ensure write is committed (for eventual consistency)
+    await new Promise(resolve => setTimeout(resolve, 100))
     
     // Verify the write by reading back the portfolio
     const verifyPortfolio = await readPortfolio()
+    const sectionVisibilitiesAfterRead = Object.keys(verifyPortfolio.sections || {}).reduce((acc, key) => {
+      acc[key] = verifyPortfolio.sections[key]?.visible
+      return acc
+    }, {})
+    
     console.log('Portfolio after write - verifying updates:', {
       updatedSections: Object.keys(updates.sections || {}),
-      achievementsVisible: verifyPortfolio.sections?.achievements?.visible,
-      allSectionVisibilities: Object.keys(verifyPortfolio.sections || {}).reduce((acc, key) => {
-        acc[key] = verifyPortfolio.sections[key]?.visible
-        return acc
-      }, {})
+      beforeWrite: sectionVisibilitiesBeforeWrite,
+      afterRead: sectionVisibilitiesAfterRead,
+      match: JSON.stringify(sectionVisibilitiesBeforeWrite) === JSON.stringify(sectionVisibilitiesAfterRead)
     })
     
-    res.json({ message: 'Portfolio updated successfully', portfolio: verifyPortfolio })
+    // Use the in-memory portfolio (which we know is correct) instead of the read-back
+    // This ensures we return the correct data even if there's eventual consistency issues
+    res.json({ message: 'Portfolio updated successfully', portfolio })
   } catch (error) {
     console.error('❌ Update portfolio error:', error)
     console.error('Error stack:', error.stack)

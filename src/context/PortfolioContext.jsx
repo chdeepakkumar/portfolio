@@ -44,6 +44,12 @@ export const PortfolioProvider = ({ children }) => {
         console.warn('PortfolioContext - No sections in response, setting empty object')
         setPortfolio({})
       } else {
+        // Log section visibilities for debugging
+        const sectionVisibilities = Object.keys(data.sections).reduce((acc, key) => {
+          acc[key] = data.sections[key]?.visible
+          return acc
+        }, {})
+        console.log('PortfolioContext - Section visibilities after load:', sectionVisibilities)
         setPortfolio(data.sections)
       }
       

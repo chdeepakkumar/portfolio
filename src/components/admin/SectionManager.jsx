@@ -226,6 +226,12 @@ const SectionManager = ({ onNotification }) => {
     }
 
     const newVisibleState = !section.visible
+    console.log(`SectionManager - Toggling ${sectionId}:`, {
+      currentVisible: section.visible,
+      newVisibleState: newVisibleState,
+      newVisibleType: typeof newVisibleState
+    })
+    
     // Optimistically update local state
     const updatedSections = sections.map((s) =>
       s.id === sectionId ? { ...s, visible: newVisibleState } : s
@@ -233,13 +239,15 @@ const SectionManager = ({ onNotification }) => {
     setSections(updatedSections)
 
     try {
-      await updatePortfolio({
+      const updatePayload = {
         sections: {
           [sectionId]: {
             visible: newVisibleState
           }
         }
-      })
+      }
+      console.log(`SectionManager - Sending update:`, JSON.stringify(updatePayload))
+      await updatePortfolio(updatePayload)
       onNotification(
         `Section ${newVisibleState ? 'shown' : 'hidden'} successfully`,
         'success'
