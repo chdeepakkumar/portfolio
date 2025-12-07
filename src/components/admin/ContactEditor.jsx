@@ -52,19 +52,23 @@ const ContactEditor = ({ onNotification }) => {
 
     const updated = links.filter((link) => link.id !== id)
     try {
+      // Ensure we send the complete content structure
+      const updatedContent = {
+        ...contactData,
+        links: updated
+      }
+      
       await updatePortfolio({
         sections: {
           contact: {
-            content: {
-              ...contactData,
-              links: updated
-            }
+            content: updatedContent
           }
         }
       })
       onNotification('Contact link deleted successfully', 'success')
     } catch (error) {
-      onNotification('Failed to delete contact link', 'error')
+      console.error('Error deleting contact link:', error)
+      onNotification(error.message || 'Failed to delete contact link', 'error')
     }
   }
 
@@ -107,19 +111,22 @@ const ContactEditor = ({ onNotification }) => {
 
   const handleDescriptionUpdate = async () => {
     try {
+      const updatedContent = {
+        ...contactData,
+        description: description || '' // Allow empty description
+      }
+      
       await updatePortfolio({
         sections: {
           contact: {
-            content: {
-              ...contactData,
-              description
-            }
+            content: updatedContent
           }
         }
       })
       onNotification('Description updated successfully', 'success')
     } catch (error) {
-      onNotification('Failed to update description', 'error')
+      console.error('Error updating description:', error)
+      onNotification(error.message || 'Failed to update description', 'error')
     }
   }
 

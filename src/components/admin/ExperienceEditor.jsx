@@ -47,10 +47,12 @@ const ExperienceEditor = ({ onNotification }) => {
 
     const updated = experiences.filter((exp) => exp.id !== id)
     try {
+      const experienceContent = portfolio?.experience?.content || {}
       await updatePortfolio({
         sections: {
           experience: {
             content: {
+              ...experienceContent,
               experiences: updated
             }
           }
@@ -58,7 +60,8 @@ const ExperienceEditor = ({ onNotification }) => {
       })
       onNotification('Experience deleted successfully', 'success')
     } catch (error) {
-      onNotification('Failed to delete experience', 'error')
+      console.error('Error deleting experience:', error)
+      onNotification(error.message || 'Failed to delete experience', 'error')
     }
   }
 

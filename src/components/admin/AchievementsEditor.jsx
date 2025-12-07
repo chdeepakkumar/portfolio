@@ -41,10 +41,12 @@ const AchievementsEditor = ({ onNotification }) => {
 
     const updated = achievements.filter((item) => item.id !== id)
     try {
+      const achievementsContent = portfolio?.achievements?.content || {}
       await updatePortfolio({
         sections: {
           achievements: {
             content: {
+              ...achievementsContent,
               items: updated
             }
           }
@@ -52,7 +54,8 @@ const AchievementsEditor = ({ onNotification }) => {
       })
       onNotification('Achievement deleted successfully', 'success')
     } catch (error) {
-      onNotification('Failed to delete achievement', 'error')
+      console.error('Error deleting achievement:', error)
+      onNotification(error.message || 'Failed to delete achievement', 'error')
     }
   }
 

@@ -41,10 +41,12 @@ const EducationEditor = ({ onNotification }) => {
 
     const updated = educationItems.filter((item) => item.id !== id)
     try {
+      const educationContent = portfolio?.education?.content || {}
       await updatePortfolio({
         sections: {
           education: {
             content: {
+              ...educationContent,
               items: updated
             }
           }
@@ -52,7 +54,8 @@ const EducationEditor = ({ onNotification }) => {
       })
       onNotification('Education entry deleted successfully', 'success')
     } catch (error) {
-      onNotification('Failed to delete education entry', 'error')
+      console.error('Error deleting education entry:', error)
+      onNotification(error.message || 'Failed to delete education entry', 'error')
     }
   }
 

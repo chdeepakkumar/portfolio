@@ -140,23 +140,43 @@ const SectionManager = ({ onNotification }) => {
   useEffect(() => {
     console.log('SectionManager useEffect - portfolio:', portfolio, 'sectionOrder:', sectionOrder)
     
-    if (portfolio && sectionOrder && sectionOrder.length > 0) {
-      // Build sections list from sectionOrder, ensuring all sections are included
-      // This ensures hidden sections remain in the list so they can be toggled back on
-      const sectionsList = sectionOrder.map((id, index) => {
-        // Get visibility from portfolio, defaulting to true if not set
-        const sectionData = portfolio[id]
-        return {
-          id,
-          order: index + 1,
-          visible: sectionData?.visible ?? true
+    if (portfolio && Object.keys(portfolio).length > 0) {
+      // Get all sections from portfolio (not just sectionOrder)
+      // This ensures hidden sections are included so they can be toggled back on
+      const allSectionIds = new Set(sectionOrder || [])
+      
+      // Add any sections that exist in portfolio but not in sectionOrder
+      Object.keys(portfolio).forEach(id => {
+        if (id !== 'hero') { // Hero is special, not in sectionOrder
+          allSectionIds.add(id)
         }
       })
+      
+      // Build sections list, preserving order from sectionOrder when available
+      const orderedIds = sectionOrder && sectionOrder.length > 0 
+        ? [...sectionOrder, ...Array.from(allSectionIds).filter(id => !sectionOrder.includes(id))]
+        : Array.from(allSectionIds)
+      
+      const sectionsList = orderedIds.map((id, index) => {
+        const sectionData = portfolio[id]
+        if (!sectionData) return null // Skip if section doesn't exist
+        
+        // Get order from sectionOrder if available, otherwise use index
+        const orderInSectionOrder = sectionOrder?.indexOf(id)
+        const order = orderInSectionOrder !== -1 ? orderInSectionOrder + 1 : index + 1
+        
+        return {
+          id,
+          order,
+          visible: sectionData?.visible ?? true
+        }
+      }).filter(Boolean) // Remove null entries
+      
       console.log('Setting sections list:', sectionsList)
       setSections(sectionsList)
-    } else if (portfolio && (!sectionOrder || sectionOrder.length === 0)) {
-      // If portfolio exists but no sectionOrder, show empty state
-      console.warn('No section order found, portfolio sections:', Object.keys(portfolio))
+    } else if (portfolio && Object.keys(portfolio).length === 0) {
+      // Portfolio exists but is empty
+      console.warn('Portfolio is empty')
       setSections([])
     } else if (!portfolio) {
       console.log('Portfolio is null, waiting for data...')
